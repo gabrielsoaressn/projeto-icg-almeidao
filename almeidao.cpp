@@ -1,4 +1,5 @@
 #include <GL/glut.h> 
+#include <GL/glu.h>
 #include <math.h>    
 #include <stdio.h>   
 //incluindo stb image pra permit eu adicionar textura
@@ -10,11 +11,24 @@
 #define GRAUS_PARA_RAD(deg) ((deg) * PI / 180.0f) // Converte graus para radianos
 
 GLuint idTexturaConcreto;
+float anguloRotacaoZ = 0.0f;
+float anguloRotacaoY = 0.0f;
+float anguloRotacaoX = 0.0f;
+float cameraDistanciaZ = 5.0f;
+
+const int NUM_BATENTES_POR_ARCO = 15;
+const float ALTURA_MIN_REAL = 0.3f;  // 40 cm em metros
+const float ALTURA_MAX_REAL = 4.0f;  // 6 m em metros
+const float ESCALA_OPENGL = 10.0f; // 1 unidade OpenGL = 10 metros
+
+const float ALTURA_MIN_ESC = ALTURA_MIN_REAL / ESCALA_OPENGL; // Altura escalonada do topo do 1º degrau
+const float ALTURA_MAX_ESC = ALTURA_MAX_REAL / ESCALA_OPENGL; // Altura escalonada do topo do último degrau
+const float Z_BASE_INICIAL = 0.0f; // Altura da base do primeiro degrau (no chão)
 
 GLuint carregarTextura(const char *nomeArquivo) {
     GLuint idTextura;
     int largura, altura, numCanais;
-    stbi_set_flip_vertically_on_load(true); // OpenGL espera 0,0 no canto inferior esquerdo
+    stbi_set_flip_vertically_on_load(true); 
     unsigned char *dados = stbi_load(nomeArquivo, &largura, &altura, &numCanais, 0);
     if (dados) {
         GLenum formato = GL_RGB;
@@ -32,150 +46,183 @@ GLuint carregarTextura(const char *nomeArquivo) {
 
         stbi_image_free(dados); // Libera memória da imagem original
         glBindTexture(GL_TEXTURE_2D, 0); // Desfaz o bind
-        printf("Textura '%s' carregada (ID: %u)\n", nomeArquivo, idTextura);
         return idTextura;
     } else {
         fprintf(stderr, "Erro ao carregar textura '%s': %s\n", nomeArquivo, stbi_failure_reason());
         return 0;
     }
 }
-void desenharFaixaElipseTexturizada(float cx, float cy, float rx_int, float ry_int, 
-    float rx_ext, float ry_ext, float angulo_inicial_graus, float angulo_final_graus, int num_segmentos)
+
+void desenharDegrauArquibancada(float cx, float cy,
+    float rx_int, float ry_int, // Raio interno deste degrau
+    float rx_ext, float ry_ext, // Raio externo deste degrau
+    float z_base, float z_topo, // Z inferior e superior
+    float angulo_inicial_graus, float angulo_final_graus,
+    int num_segmentos_curva) // Qualidade da curva
 {
-    if (num_segmentos <= 1) num_segmentos = 2;
+    if (num_segmentos_curva <= 1) num_segmentos_curva = 2;
 
     float rad_inicial = GRAUS_PARA_RAD(angulo_inicial_graus);
     float rad_final = GRAUS_PARA_RAD(angulo_final_graus);
     float intervalo_rad = rad_final - rad_inicial;
 
-    // Usaremos GL_TRIANGLE_STRIP para eficiência
+    // --- 1. Desenhar a Face SUPERIOR (Piso do Degrau) ---
+    // Faixa horizontal na altura z_topo
     glBegin(GL_TRIANGLE_STRIP);
+    for (int i = 0; i <= num_segmentos_curva; i++) {
+    float fracao = (float)i / (float)num_segmentos_curva;
+    float angulo_atual_rad = rad_inicial + fracao * intervalo_rad;
+    float cos_a = cosf(angulo_atual_rad);
+    float sin_a = sinf(angulo_atual_rad);
 
-    for (int i = 0; i <= num_segmentos; i++) {
-        float fracao = (float)i / (float)num_segmentos;
-        float angulo_atual_rad = rad_inicial + fracao * intervalo_rad;
+    // Coordenada S da textura acompanha o ângulo
+    float s_coord = fracao * 5.0f; // Repete a textura 5x ao longo do arco (ajuste!)
 
-        float cos_a = cosf(angulo_atual_rad);
-        float sin_a = sinf(angulo_atual_rad);
+    // Vértice Externo (t=1.0)
+    glTexCoord2f(s_coord, 1.0f);
+    glVertex3f(cx + rx_ext * cos_a, cy + ry_ext * sin_a, z_topo);
 
-        // Calcula ponto externo
-        float x_ext = cx + rx_ext * cos_a;
-        float y_ext = cy + ry_ext * sin_a;
-
-        // Calcula ponto interno
-        float x_int = cx + rx_int * cos_a;
-        float y_int = cy + ry_int * sin_a;
-
-        // Coordenadas de Textura:
-        // s (horizontal) varia com a fração do arco
-        // t (vertical) é 0.0 para interno, 1.0 para externo
-        float s_coord = fracao; // Mapeia [0, 1] ao longo do arco angular
-        // (Alternativa: mapear baseado em comprimento de arco, mais complexo)
-
-        // Vértice Externo (t=1.0)
-        glTexCoord2f(s_coord, 1.0f);
-        glVertex2f(x_ext, y_ext);
-
-        // Vértice Interno (t=0.0)
-        glTexCoord2f(s_coord, 0.0f);
-        glVertex2f(x_int, y_int);
+    // Vértice Interno (t=0.0)
+    glTexCoord2f(s_coord, 0.0f);
+    glVertex3f(cx + rx_int * cos_a, cy + ry_int * sin_a, z_topo);
     }
     glEnd();
-}
 
-void desenharContornoArcoElipse(float cx, float cy, float rx, float ry,
-                           float start_angle_deg, float end_angle_deg, int num_segments)
-{    if (num_segments <= 0) num_segments = 1;
+    // --- 2. Desenhar a Face FRONTAL (Espelho do Degrau) ---
+    // Faixa vertical no raio interno (rx_int, ry_int) indo de z_base até z_topo
+    glBegin(GL_TRIANGLE_STRIP);
+    for (int i = 0; i <= num_segmentos_curva; i++) {
+    float fracao = (float)i / (float)num_segmentos_curva;
+    float angulo_atual_rad = rad_inicial + fracao * intervalo_rad;
+    float cos_a = cosf(angulo_atual_rad);
+    float sin_a = sinf(angulo_atual_rad);
 
-    float start_rad = GRAUS_PARA_RAD(start_angle_deg);
-    float end_rad = GRAUS_PARA_RAD(end_angle_deg);
-    float angle_range = end_rad - start_rad;
+    // Coordenada S da textura acompanha o ângulo
+    float s_coord = fracao * 5.0f; // Repete a textura 5x ao longo do arco
 
-    glBegin(GL_LINE_STRIP);
+    // Vértice Superior (t=1.0) no raio interno
+    glTexCoord2f(s_coord, 1.0f);
+    glVertex3f(cx + rx_int * cos_a, cy + ry_int * sin_a, z_topo);
 
-    for (int i = 0; i <= num_segments; i++) { 
-        float fraction = (float)i / (float)num_segments;
-        float theta = start_rad + fraction * angle_range;
-
-        //fórmula da elipse
-        float x = rx * cosf(theta);
-        float y = ry * sinf(theta);
-
-        glVertex2f(cx + x, cy + y);
+    // Vértice Inferior (t=0.0) no raio interno
+    glTexCoord2f(s_coord, 0.0f);
+    glVertex3f(cx + rx_int * cos_a, cy + ry_int * sin_a, z_base);
     }
     glEnd();
+
+    // --- Opcional: Desenhar Faces Laterais (Tampas) ---
+    // Se desejar fechar as laterais dos degraus
+    // Face Inicial
+    glBegin(GL_QUADS);
+    float cos_ini = cosf(rad_inicial); float sin_ini = sinf(rad_inicial);
+    glTexCoord2f(0,0); glVertex3f(cx + rx_int*cos_ini, cy + ry_int*sin_ini, z_base);
+    glTexCoord2f(1,0); glVertex3f(cx + rx_ext*cos_ini, cy + ry_ext*sin_ini, z_base);
+    glTexCoord2f(1,1); glVertex3f(cx + rx_ext*cos_ini, cy + ry_ext*sin_ini, z_topo);
+    glTexCoord2f(0,1); glVertex3f(cx + rx_int*cos_ini, cy + ry_int*sin_ini, z_topo);
+    glEnd();
+    // Face Final
+    glBegin(GL_QUADS);
+    float cos_fim = cosf(rad_final); float sin_fim = sinf(rad_final);
+    glTexCoord2f(0,0); glVertex3f(cx + rx_int*cos_fim, cy + ry_int*sin_fim, z_base);
+    glTexCoord2f(0,1); glVertex3f(cx + rx_int*cos_fim, cy + ry_int*sin_fim, z_topo);
+    glTexCoord2f(1,1); glVertex3f(cx + rx_ext*cos_fim, cy + ry_ext*sin_fim, z_topo);
+    glTexCoord2f(1,0); glVertex3f(cx + rx_ext*cos_fim, cy + ry_ext*sin_fim, z_base);
+    glEnd();
+
 }
 
 void display() {
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    // Define a cor base (branco, será multiplicada pela textura se o modo for GL_MODULATE)
-    glColor3f(1.0f, 1.0f, 1.0f);
-
-    // --- Parâmetros das Elipses ---
-    float centro_x = 0.0f;
-    float centro_y = 0.0f;
-    int segmentos_arco_curto = 40;
-    int segmentos_arco_longo = 60; // Para o arco 120-240
-
-    // Define os raios internos e externos DIRETAMENTE
-    float raio_x_int = 0.5f;
-    float raio_y_int = 0.7f;
-    float raio_x_ext = 0.8f; // Seu raio externo X
-    float raio_y_ext = 0.95f; // Seu raio externo Y
-
-    // ---> ATIVA A TEXTURA ANTES DE DESENHAR <---
-    glBindTexture(GL_TEXTURE_2D, idTexturaConcreto);
-
-    
-    //    Substitui TODAS as chamadas anteriores para desenhar contornos e linhas
-
-    // Faixa 1: 0 a 60 graus
-    desenharFaixaElipseTexturizada(centro_x, centro_y,
-                                    raio_x_int, raio_y_int, raio_x_ext, raio_y_ext,
-                                    0.0f, 60.0f, segmentos_arco_curto);
-
-    // Faixa 2: 120 a 240 graus
-    desenharFaixaElipseTexturizada(centro_x, centro_y,
-                                    raio_x_int, raio_y_int, raio_x_ext, raio_y_ext,
-                                    120.0f, 240.0f, segmentos_arco_longo);
-
-    // Faixa 3: 300 a 360 graus
-    desenharFaixaElipseTexturizada(centro_x, centro_y,
-                                    raio_x_int, raio_y_int, raio_x_ext, raio_y_ext,
-                                    300.0f, 360.0f, segmentos_arco_curto); // Usei segmentos_arco_curto aqui, ajuste se necessário
-
-    
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    glFlush();
-    
-}
-
-void reshape(int width, int height) {
-    if (height == 0) height = 1;
-    float aspect = (float)width / (float)height;
-
-    glViewport(0, 0, width, height);
-
-    glMatrixMode(GL_PROJECTION); 
-    glLoadIdentity();          
-
-    if (width >= height) {
-        gluOrtho2D(-1.0 * aspect, 1.0 * aspect, -1.0, 1.0);
-    } else {
-        gluOrtho2D(-1.0, 1.0, -1.0 / aspect, 1.0 / aspect);
-    }
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glColor3f(1.0f, 1.0f, 1.0f); // Cor base branca (para modular textura)
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
+    gluLookAt(0.0, 0.0, cameraDistanciaZ, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
+
+    // Aplica Rotações Globais
+    glRotatef(anguloRotacaoX, 1.0f, 0.0f, 0.0f);
+    glRotatef(anguloRotacaoY, 0.0f, 1.0f, 0.0f);
+    glRotatef(anguloRotacaoZ, 0.0f, 0.0f, 1.0f);
+
+    // --- Parâmetros ---
+    float centro_x = 0.0f; float centro_y = 0.0f;
+    int segmentos_curva = 40; // Qualidade da curva para cada degrau
+
+    // Raios gerais da arquibancada (limites interno e externo)
+    float raio_x_geral_int = 0.5f; float raio_y_geral_int = 0.7f;
+    float raio_x_geral_ext = 0.8f; float raio_y_geral_ext = 0.95f;
+
+    // Largura radial total
+    float largura_radial_x = raio_x_geral_ext - raio_x_geral_int;
+    float largura_radial_y = raio_y_geral_ext - raio_y_geral_int;
+
+    // Arcos da arquibancada (ângulos em graus)
+    float arcos[][2] = { {0.0f, 60.0f}, {120.0f, 240.0f}, {300.0f, 360.0f} };
+    int num_arcos = sizeof(arcos) / sizeof(arcos[0]);
+
+    // --- Desenha as Arquibancadas (Degrau por Degrau) ---
+    glBindTexture(GL_TEXTURE_2D, idTexturaConcreto);
+
+    for (int i = 0; i < num_arcos; ++i) { // Loop pelas 3 seções de arquibancada
+        float ang_inicio_arco = arcos[i][0];
+        float ang_fim_arco = arcos[i][1];
+
+        float z_topo_anterior = Z_BASE_INICIAL; // Z do topo do degrau anterior (começa no chão)
+
+        for (int k = 0; k < NUM_BATENTES_POR_ARCO; ++k) { // Loop pelos 15 degraus (k=0 a 14)
+
+            // Calcula Z (altura) do topo deste degrau (k)
+            float fracao_altura = (float)k / (NUM_BATENTES_POR_ARCO - 1); // 0 para k=0, 1 para k=14
+            float z_topo_atual = Z_BASE_INICIAL + ALTURA_MIN_ESC + (ALTURA_MAX_ESC - ALTURA_MIN_ESC) * fracao_altura;
+            // A base deste degrau é o topo do anterior
+            float z_base_atual = z_topo_anterior;
+
+            // Calcula raios interno e externo PARA ESTE DEGRAU (k)
+            float fracao_raio_int = (float)k / NUM_BATENTES_POR_ARCO;
+            float fracao_raio_ext = (float)(k + 1) / NUM_BATENTES_POR_ARCO;
+
+            float rx_int_k = raio_x_geral_int + largura_radial_x * fracao_raio_int;
+            float ry_int_k = raio_y_geral_int + largura_radial_y * fracao_raio_int;
+            float rx_ext_k = raio_x_geral_int + largura_radial_x * fracao_raio_ext;
+            float ry_ext_k = raio_y_geral_int + largura_radial_y * fracao_raio_ext;
+
+            // Desenha o degrau k
+            desenharDegrauArquibancada(centro_x, centro_y,
+                                        rx_int_k, ry_int_k, rx_ext_k, ry_ext_k,
+                                        z_base_atual, z_topo_atual,
+                                        ang_inicio_arco, ang_fim_arco,
+                                        segmentos_curva);
+
+            // Atualiza o Z do topo anterior para a próxima iteração
+            z_topo_anterior = z_topo_atual;
+        }
+    }
+
+    glBindTexture(GL_TEXTURE_2D, 0); // Desativa textura
+
+    glutSwapBuffers();
+}
+    
+
+    
+
+void reshape(int largura, int altura) {
+    if (altura == 0) altura = 1;
+    float proporcao = (float)largura / (float)altura;
+
+    glViewport(0, 0, largura, altura);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();           
+    gluPerspective(60.0, proporcao, 0.1, 100.0);
+    glMatrixMode(GL_MODELVIEW);
 }
 
 void init() {
-    //cor do céu
-    glClearColor(0.5f, 0.8f, 0.9f, 1.0f);
+    glClearColor(0.529f, 0.808f, 0.922f, 1.0f); // Fundo azul claro
     glEnable(GL_TEXTURE_2D);
-    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+    glEnable(GL_DEPTH_TEST);
+
     idTexturaConcreto = carregarTextura("concreto.jpg");
     if (idTexturaConcreto == 0) {
         fprintf(stderr, "ERRO FATAL: Textura 'concreto.jpg' não carregada!\n");
@@ -183,25 +230,73 @@ void init() {
     }
 
 }
+void teclado(unsigned char key, int x, int y) {
+    float incremento = 5.0f; // Quantos graus girar a cada tecla
+    float incrementoZoom = 0.2f;
+    float zoomMin = 0.5f;
+    float zoomMax = 20.0f;
+
+    switch (key) {
+        case 'a': 
+        case 'A':
+            anguloRotacaoZ += incremento;
+            break;
+        case 'd': 
+        case 'D':
+            anguloRotacaoZ -= incremento;
+            break;
+        case 'w': 
+        case 'W':
+            anguloRotacaoY += incremento; 
+            break;
+        case 's': 
+        case 'S':
+            anguloRotacaoY -= incremento; 
+            break;
+        case 'x':
+        case 'X':
+            anguloRotacaoX += incremento; 
+            break;
+        case 'z':
+        case 'Z':
+            anguloRotacaoX -= incremento; 
+            break;
+
+        case 'j': case 'J': // Afastar (aumenta distância)
+            cameraDistanciaZ += incrementoZoom;
+            if (cameraDistanciaZ > zoomMax) cameraDistanciaZ = zoomMax; // Limita distância máxima
+            break;
+        case 'k': case 'K': // Aproximar (diminui distância)
+            cameraDistanciaZ -= incrementoZoom;
+            if (cameraDistanciaZ < zoomMin) cameraDistanciaZ = zoomMin; // Limita distância mínima
+            break;
+
+        case 27: // Tecla ESC (ASCII 27)
+            exit(0); // Sai do programa
+            break;
+            
+    }glutPostRedisplay();
+}
 
 int main(int argc, char** argv) {
     glutInit(&argc, argv);
 
-    glutInitDisplayMode(GLUT_SINGLE | GLUT_RGBA);
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
 
     glutInitWindowSize(600, 600);
-
     glutInitWindowPosition(100, 100);
-
-    // Cria a janela com um título
-    glutCreateWindow("Almeidão");
-
-    init();
-
+    glutCreateWindow("Almeidao"); 
+    init(); 
     glutDisplayFunc(display);
     glutReshapeFunc(reshape); 
+    glutKeyboardFunc(teclado);
+
+    printf("Use 'A'/'D' para girar em torno de Z (profundidade).\n");
+    printf("Use 'W'/'S' para girar em torno de Y (horizontal).\n");
+    printf("Use 'X'/'Z' para girar em torno de X (vertical).\n");
+
+    printf("Pressione ESC para sair.\n");
 
     glutMainLoop();
-
     return 0;
 }
