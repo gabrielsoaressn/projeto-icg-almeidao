@@ -40,6 +40,75 @@ const float Z_BASE_INICIAL = 0.0f;          // Coordenada Z da base dos degraus/
 const float Z_CHAO = -0.01f;                // Coordenada Z do plano do chão (ligeiramente abaixo da base)
 const float INCLINACAO_PAREDE_OFFSET = 0.05f; // Deslocamento radial no topo da parede para criar inclinação
 
+bool leftMousePressed = false;
+int lastMouseX = 0;
+float cameraAngle = 0.0f; // Ângulo da câmera em graus
+float camera_position[3] = {0.0f, 5.0f, 20.0f}; // Posição inicial
+float camera_target[3] = {0.0f, 0.0f, 0.0f};    // Ponto onde a câmera olha
+float zoomSpeed = 0.5f;
+
+// Parâmetro de controle da curva (de 0.0 a 1.0)
+float t = 0.0f;
+
+// Pontos de controle da curva de Bézier
+float p0[3] = {0.0f, 5.0f, 10.0f};
+float p1[3] = {5.0f, 8.0f, 5.0f};
+float p2[3] = {10.0f, 2.0f, 5.0f};
+float p3[3] = {15.0f, 5.0f, 10.0f};
+
+bool mouseEsquerdoPressionado = false;
+int ultimoXMouse = 0;
+
+
+//  Função para capturar o clique do mouse
+void mouse(int botao, int estado, int x, int y) {
+    if (botao == GLUT_LEFT_BUTTON) {
+        if (estado == GLUT_DOWN) {
+            mouseEsquerdoPressionado = true;
+            ultimoXMouse = x;
+        } else if (estado == GLUT_UP) {
+            mouseEsquerdoPressionado = false;
+        }
+    }
+}
+
+
+// Mouse - Pressionar ou soltar botão
+void motion(int x, int y) {
+    if (mouseEsquerdoPressionado) {
+        int deltaX = x - ultimoXMouse;
+        cameraAngle += deltaX * 0.5f; // Sensibilidade da rotação
+        if (cameraAngle > 360.0f) cameraAngle -= 360.0f;
+        if (cameraAngle < 0.0f) cameraAngle += 360.0f;
+        ultimoXMouse = x;
+        glutPostRedisplay(); // Pede novo desenho da cena
+    }
+}
+
+
+// Função para calcular o ponto na curva de Bézier
+void bezier_curve(float t, float *p0, float *p1, float *p2, float *p3, float *point) {
+    float u = 1 - t;
+    float tt = t * t;
+    float uu = u * u;
+    float ttt = tt * t;
+    float uuu = uu * u;
+
+    point[0] = uuu * p0[0] + 3 * uu * t * p1[0] + 3 * u * tt * p2[0] + ttt * p3[0];
+    point[1] = uuu * p0[1] + 3 * uu * t * p1[1] + 3 * u * tt * p2[1] + ttt * p3[1];
+    point[2] = uuu * p0[2] + 3 * uu * t * p1[2] + 3 * u * tt * p2[2] + ttt * p3[2];
+}
+
+// Atualiza a posição da câmera na curva
+void update_camera(float t, float *camera_position, float *p0, float *p1, float *p2, float *p3) {
+    float point[3];
+    bezier_curve(t, p0, p1, p2, p3, point);
+
+    camera_position[0] = point[0];
+    camera_position[1] = point[1];
+    camera_position[2] = point[2];
+}
+
 // --- Funções Utilitárias ---
 GLuint carregarTextura(const char *nomeArquivo) {
     GLuint idTextura;
@@ -186,10 +255,19 @@ void display() {
     glMatrixMode(GL_MODELVIEW); // Define a matriz de ModelView como a matriz atual
     glLoadIdentity();           // Carrega a matriz identidade (reseta transformações)
 
-    // Configura a câmera usando gluLookAt: Posição do olho, Ponto para onde olha, Vetor 'up'
-    gluLookAt(0.0, 0.0, cameraDistanciaZ,  // Posição da câmera (controlada pelo zoom)
-              0.0, 0.0, 0.0,              // Ponto de foco (origem)
-              0.0, 1.0, 0.0);             // Vetor que aponta para cima (eixo Y)
+   // Configuração da câmera
+   glTranslatef(-camera_position[0], -camera_position[1], -camera_position[2]);
+    
+   // Cálculo do ângulo de rotação da câmera
+   float rad = cameraAngle * M_PI / 180.0f;
+   float lookX = camera_position[0] + sin(rad);
+   float lookZ = camera_position[2] - cos(rad);
+
+   // Define a posição da câmera
+   gluLookAt(camera_position[0], camera_position[1], camera_position[2],
+             lookX, 0.0f, lookZ,
+             0.0f, 1.0f, 0.0f);
+
 
     // Aplica as rotações (a ordem importa!)
     glRotatef(anguloRotacaoX, 1.0f, 0.0f, 0.0f); // Rotação em torno do eixo X global
@@ -481,58 +559,45 @@ void reshape(int largura, int altura) {
     glMatrixMode(GL_MODELVIEW);
 }
 
-// --- Função de callback: Teclado ---
+// teste para ver se a função keyboard funciona
+// void keyboard(unsigned char key, int x, int y) {
+//    printf("tecla: %c\n", key);
+//  }
+
 void keyboard(unsigned char key, int x, int y) {
-    float incrementoRot = 5.0f;  // Quantos graus rotacionar por tecla pressionada
-    float incrementoZoom = 0.2f; // Quanto mudar a distância da câmera por tecla
-    float zoomMin = 0.5f;        // Distância mínima permitida da câmera
-    float zoomMax = 20.0f;       // Distância máxima permitida da câmera
+    printf("Tecla: %c\n", key);
+
+    float cameraSpeed = 0.5f; // Velocidade de movimento
+    float rad = cameraAngle * M_PI / 180.0f;
+    float dirX = sin(rad);
+    float dirZ = -cos(rad);
 
     switch (key) {
-        // Rotação em torno do Eixo Z (A/D)
-        case 'a': case 'A':
-            anguloRotacaoZ += incrementoRot;
+        case 'a': // Rotacionar à esquerda
+            cameraAngle -= 5.0f;
             break;
-        case 'd': case 'D':
-            anguloRotacaoZ -= incrementoRot;
+        case 'd': // Rotacionar à direita
+            cameraAngle += 5.0f;
             break;
-
-        // Rotação em torno do Eixo Y (W/S) - Inclinação vertical
-        case 'w': case 'W':
-            anguloRotacaoY += incrementoRot;
+        case 'w': // Subir (eixo Y)
+            camera_position[1] += cameraSpeed;
             break;
-        case 's': case 'S':
-            anguloRotacaoY -= incrementoRot;
+        case 's': // Descer (eixo Y)
+            camera_position[1] -= cameraSpeed;
             break;
-
-        // Rotação em torno do Eixo X (X/Z) - Inclinação lateral
-        case 'x': case 'X':
-            anguloRotacaoX += incrementoRot;
+        case 'j': // Aproximar (zoom in)
+            camera_position[0] += dirX * cameraSpeed;
+            camera_position[2] += dirZ * cameraSpeed;
             break;
-        case 'z': case 'Z': // Remapeado 'z' para controlar X negativo
-            anguloRotacaoX -= incrementoRot;
+        case 'k': // Afastar (zoom out)
+            camera_position[0] -= dirX * cameraSpeed;
+            camera_position[2] -= dirZ * cameraSpeed;
             break;
-
-        // Controle de Zoom (J/K) - Distância da câmera
-        case 'j': case 'J': // Zoom In (aproximar) -> Diminuir distância
-            cameraDistanciaZ -= incrementoZoom;
-            if (cameraDistanciaZ < zoomMin) { // Limita o zoom mínimo
-                cameraDistanciaZ = zoomMin;
-            }
-            break;
-        case 'k': case 'K': // Zoom Out (afastar) -> Aumentar distância
-            cameraDistanciaZ += incrementoZoom;
-             if (cameraDistanciaZ > zoomMax) { // Limita o zoom máximo
-                cameraDistanciaZ = zoomMax;
-            }
-            break;
-
-        // Sair da aplicação
-        case 27: // Tecla ESC
+        case 27: // ESC
             exit(0);
             break;
     }
-    // Solicita ao GLUT para redesenhar a janela na próxima iteração do loop
+
     glutPostRedisplay();
 }
 
@@ -564,6 +629,11 @@ int main(int numArgumentos, char** argumentos) {
     glutDisplayFunc(display);   // Função a ser chamada para desenhar a cena
     glutReshapeFunc(reshape);   // Função a ser chamada quando a janela é redimensionada
     glutKeyboardFunc(keyboard); // Função a ser chamada quando uma tecla é pressionada
+
+
+    glutMouseFunc(mouse);
+    glutMotionFunc(motion);
+
 
     // Exibe as instruções de controle no console
     printf("Controles do Simulador:\n");
