@@ -246,6 +246,40 @@ void desenharTampaLateral(float cx, float cy, float angulo_graus,
     glEnd();
 }
 
+void desenharMarquiseCobertura(float cx, float cy,
+    float rx_base, float ry_base, float z_base, // Ponto de trás/base
+    float rx_frente, float ry_frente, float z_frente, // Ponto da frente/projetado
+    float angulo_inicial_graus, float angulo_final_graus,
+    int num_segmentos_curva) {
+    if (num_segmentos_curva <= 1) num_segmentos_curva = 2;
+
+    float rad_inicial = GRAUS_PARA_RAD(angulo_inicial_graus);
+    float rad_final = GRAUS_PARA_RAD(angulo_final_graus);
+    float intervalo_rad = rad_final - rad_inicial;
+
+    // Define a aparência (pode mudar cor/textura)
+    glColor3f(0.7f, 0.7f, 0.75f); // Um cinza diferente
+    // glBindTexture(GL_TEXTURE_2D, idTexturaMarquise); // Se tiver textura
+
+    glBegin(GL_TRIANGLE_STRIP);
+    for (int i = 0; i <= num_segmentos_curva; i++) {
+    float fracao = (float)i / (float)num_segmentos_curva;
+    float angulo_atual_rad = rad_inicial + fracao * intervalo_rad;
+    float cos_a = cosf(angulo_atual_rad);
+    float sin_a = sinf(angulo_atual_rad);
+    float s_coord = fracao; // Mapeamento de textura simples 0-1
+
+    // Vértice de TRÁS/BASE (no topo da parede superior)
+    glTexCoord2f(s_coord, 1.0f); // T=1 na parte de trás/base
+    glVertex3f(cx + rx_base * cos_a, cy + ry_base * sin_a, z_base);
+
+    // Vértice da FRENTE (projetado sobre a arquibancada)
+    glTexCoord2f(s_coord, 0.0f); // T=0 na frente/borda
+    glVertex3f(cx + rx_frente * cos_a, cy + ry_frente * sin_a, z_frente);
+    }
+    glEnd();
+}
+
 // --- Função de callback: Desenho ---
 void display() {
     // Limpa os buffers de cor e profundidade
@@ -274,230 +308,240 @@ void display() {
     glRotatef(anguloRotacaoY, 0.0f, 1.0f, 0.0f); // Rotação em torno do eixo Y global
     glRotatef(anguloRotacaoZ, 0.0f, 0.0f, 1.0f); // Rotação em torno do eixo Z global
 
-    // --- 1. Desenhar o Chão ---
-    glColor3f(0.8f, 0.8f, 0.8f);            // Cor cinza para o chão
-    glBindTexture(GL_TEXTURE_2D, idTexturaTerra); // Ativa a textura da terra
-    float tamChao = 20.0f;                  // Metade do tamanho do lado do chão
-    float repTexturaChao = 15.0f;           // Fator de repetição da textura no chão
-    glBegin(GL_QUADS);
-        glTexCoord2f(0.0f, 0.0f);                   glVertex3f(-tamChao, -tamChao, Z_CHAO);
-        glTexCoord2f(repTexturaChao, 0.0f);         glVertex3f( tamChao, -tamChao, Z_CHAO);
-        glTexCoord2f(repTexturaChao, repTexturaChao); glVertex3f( tamChao,  tamChao, Z_CHAO);
-        glTexCoord2f(0.0f, repTexturaChao);         glVertex3f(-tamChao,  tamChao, Z_CHAO);
-    glEnd();
+   // --- 1. Desenhar o Chão ---
+   glColor3f(0.8f, 0.8f, 0.8f);
+   glBindTexture(GL_TEXTURE_2D, idTexturaTerra);
+   float tamChao = 20.0f;
+   float repTexturaChao = 15.0f;
+   glBegin(GL_QUADS);
+       glTexCoord2f(0.0f, 0.0f);                   glVertex3f(-tamChao, -tamChao, Z_CHAO);
+       glTexCoord2f(repTexturaChao, 0.0f);         glVertex3f( tamChao, -tamChao, Z_CHAO);
+       glTexCoord2f(repTexturaChao, repTexturaChao); glVertex3f( tamChao,  tamChao, Z_CHAO);
+       glTexCoord2f(0.0f, repTexturaChao);         glVertex3f(-tamChao,  tamChao, Z_CHAO);
+   glEnd();
 
-    // --- Parâmetros Comuns para Arquibancadas e Paredes ---
-    float centro_x = 0.0f;
-    float centro_y = 0.0f;
-    int segmentos_curva_degrau = 40;
-    int segmentos_curva_parede = 60;
-    // Raio interno padrão
-    const float raio_x_geral_int = 0.5f;
-    const float raio_y_geral_int = 0.7f;
-    // Raio externo padrão (usado para paredes e seções normais)
-    const float raio_x_geral_ext = 0.8f;
-    const float raio_y_geral_ext = 0.95f;
-    // Largura radial padrão (baseada nos raios padrão)
-    const float largura_radial_x_padrao = raio_x_geral_ext - raio_x_geral_int;
-    const float largura_radial_y_padrao = raio_y_geral_ext - raio_y_geral_int;
-    
-    
+   // --- Parâmetros Comuns & Seção Especial ---
+   float centro_x = 0.0f;
+   float centro_y = 0.0f;
+   int segmentos_curva_degrau = 40;
+   int segmentos_curva_parede = 60;
+   // Raios e altura padrões
+   const float raio_x_geral_int = 0.5f;
+   const float raio_y_geral_int = 0.7f;
+   const float raio_x_geral_ext = 0.8f;
+   const float raio_y_geral_ext = 0.95f;
+   const float largura_radial_x_padrao = raio_x_geral_ext - raio_x_geral_int;
+   const float largura_radial_y_padrao = raio_y_geral_ext - raio_y_geral_int;
+   const float altura_max_parede_padrao = ALTURA_MAX_ESC; // Altura padrão explícita
+   const float rx_topo_parede_padrao = raio_x_geral_ext + INCLINACAO_PAREDE_OFFSET; // Topo padrão explícito
+   const float ry_topo_parede_padrao = raio_y_geral_ext + INCLINACAO_PAREDE_OFFSET;
+   // const float altura_arco_conexao = ALTURA_MIN_ESC; // Valor original
+   const float altura_arco_conexao = ALTURA_MIN_ESC * 7; // Valor que estava no seu código
+   
 
-    // Arcos principais (sem alterações na definição)
-    float arcos_principais[][2] = {
-        {  0.0f,  60.0f}, {120.0f, 140.0f}, {140.0f, 220.0f}, {220.0f, 240.0f}, {300.0f, 360.0f}
-    };
-    int num_arcos_principais = sizeof(arcos_principais) / sizeof(arcos_principais[0]);
+   // Arcos
+   float arcos_principais[][2] = {
+       {  0.0f,  60.0f}, {120.0f, 140.0f}, {140.0f, 220.0f}, {220.0f, 240.0f}, {300.0f, 360.0f}
+   };
+   int num_arcos_principais = sizeof(arcos_principais) / sizeof(arcos_principais[0]);
+   float arcos_conexao[][2] = {
+       { 60.0f, 120.0f}, {240.0f, 300.0f}
+   };
+   int num_arcos_conexao = sizeof(arcos_conexao) / sizeof(arcos_conexao[0]);
 
-    // Arcos de conexão (sem alterações)
-    float arcos_conexao[][2] = {
-        { 60.0f, 120.0f}, {240.0f, 300.0f}
-    };
-    int num_arcos_conexao = sizeof(arcos_conexao) / sizeof(arcos_conexao[0]);
-    float altura_arco_conexao = ALTURA_MIN_ESC*7;
+   // Parâmetros Seção Especial (Arquibancada 140-220)
+   const int DEGRAUS_ADICIONAIS_SECAO_ESPECIAL = 8;
+   const float FATOR_ALTURA_SECAO_ESPECIAL = 1.35f;
+   const float FATOR_RAIO_EXTERNO_SECAO_ESPECIAL = 1.15f;
+   const int num_degraus_secao_especial = NUM_DEGRAUS + DEGRAUS_ADICIONAIS_SECAO_ESPECIAL;
+   const float altura_max_secao_especial = altura_max_parede_padrao * FATOR_ALTURA_SECAO_ESPECIAL;
+   const float raio_x_ext_especial_seating = raio_x_geral_ext * FATOR_RAIO_EXTERNO_SECAO_ESPECIAL;
+   const float raio_y_ext_especial_seating = raio_y_geral_ext * FATOR_RAIO_EXTERNO_SECAO_ESPECIAL;
+   const float largura_radial_x_especial = raio_x_ext_especial_seating - raio_x_geral_int;
+   const float largura_radial_y_especial = raio_y_ext_especial_seating - raio_y_geral_int;
 
-    const int DEGRAUS_ADICIONAIS_SECAO_ESPECIAL = 8;
-    const float FATOR_ALTURA_SECAO_ESPECIAL = 1.35f; // 35% mais alta
-    const float FATOR_RAIO_EXTERNO_SECAO_ESPECIAL = 1.15f; // 15% maior raio externo
+   const float INCLINACAO_PAREDE_SUPERIOR_EXTRA = 0.15f;
+   const float FATOR_ALTURA_PAREDE_SUPERIOR = 1.6f; 
+   const float rx_base_parede_superior = rx_topo_parede_padrao;
+   const float ry_base_parede_superior = ry_topo_parede_padrao;
+   const float z_base_parede_superior = altura_max_parede_padrao;
+   const float rx_topo_parede_superior = rx_base_parede_superior + INCLINACAO_PAREDE_SUPERIOR_EXTRA;
+   const float ry_topo_parede_superior = ry_base_parede_superior + INCLINACAO_PAREDE_SUPERIOR_EXTRA;
+   const float z_topo_parede_superior = altura_max_parede_padrao * FATOR_ALTURA_PAREDE_SUPERIOR;
 
-    // *** Calcula parâmetros absolutos da seção especial ***
-    const int num_degraus_secao_especial = NUM_DEGRAUS + DEGRAUS_ADICIONAIS_SECAO_ESPECIAL;
-    const float altura_max_secao_especial = ALTURA_MAX_ESC * FATOR_ALTURA_SECAO_ESPECIAL;
-    // Raio externo *maior* para a seção especial
-    const float raio_x_ext_especial = raio_x_geral_ext * FATOR_RAIO_EXTERNO_SECAO_ESPECIAL;
-    const float raio_y_ext_especial = raio_y_geral_ext * FATOR_RAIO_EXTERNO_SECAO_ESPECIAL;
-    // Largura radial *nova* para a seção especial (baseada no raio externo maior e interno padrão)
-    const float largura_radial_x_especial = raio_x_ext_especial - raio_x_geral_int;
-    const float largura_radial_y_especial = raio_y_ext_especial - raio_y_geral_int;
+   const float MARQUISE_PROJECAO_RADIAL = -0.3f; 
+   const float MARQUISE_INCLINACAO_Z_OFFSET = 0.08f;
+   const float rx_base_marquise = rx_topo_parede_superior; // Base (atrás) no topo da parede superior
+   const float ry_base_marquise = ry_topo_parede_superior;
+   const float z_base_marquise = z_topo_parede_superior;   // Base Z no topo da parede superior
+   const float rx_frente_marquise = rx_base_marquise + MARQUISE_PROJECAO_RADIAL; // Frente (projetada) com raio menor
+   const float ry_frente_marquise = ry_base_marquise + MARQUISE_PROJECAO_RADIAL;
+   const float z_frente_marquise = z_base_marquise + MARQUISE_INCLINACAO_Z_OFFSET; // Frente com Z menor 
+
+   // --- 2. Desenhar Arquibancadas (Degraus) ---
+   glColor3f(1.0f, 1.0f, 1.0f);
+   glBindTexture(GL_TEXTURE_2D, idTexturaConcreto);
+   for (int i = 0; i < num_arcos_principais; ++i) {
+       float ang_inicio_arco = arcos_principais[i][0];
+       float ang_fim_arco = arcos_principais[i][1];
+       float z_topo_anterior = Z_BASE_INICIAL;
+       bool secao_especial = (fabs(ang_inicio_arco - 140.0f) < FLOAT_COMPARISON_TOLERANCE);
+
+       // Define parâmetros para este arco (padrão ou especial)
+       int num_degraus_atual = secao_especial ? num_degraus_secao_especial : NUM_DEGRAUS;
+       // A altura máxima aqui refere-se à arquibancada
+       float altura_max_atual_seating = secao_especial ? altura_max_secao_especial : altura_max_parede_padrao;
+       float largura_radial_x_atual = secao_especial ? largura_radial_x_especial : largura_radial_x_padrao;
+       float largura_radial_y_atual = secao_especial ? largura_radial_y_especial : largura_radial_y_padrao;
+
+       // Desenha os degraus
+       for (int k = 0; k < num_degraus_atual; ++k) {
+           float z_topo_atual = Z_BASE_INICIAL + (altura_max_atual_seating - Z_BASE_INICIAL) * ((float)(k + 1) / num_degraus_atual);
+           float z_base_atual = z_topo_anterior;
+
+           float fracao_raio_int = (float)k / num_degraus_atual;
+           float fracao_raio_ext = (float)(k + 1) / num_degraus_atual;
+           float rx_int_k = raio_x_geral_int + largura_radial_x_atual * fracao_raio_int;
+           float ry_int_k = raio_y_geral_int + largura_radial_y_atual * fracao_raio_int;
+           float rx_ext_k = raio_x_geral_int + largura_radial_x_atual * fracao_raio_ext;
+           float ry_ext_k = raio_y_geral_int + largura_radial_y_atual * fracao_raio_ext;
+
+           desenharDegrauArquibancada(
+               centro_x, centro_y,
+               rx_int_k, ry_int_k, rx_ext_k, ry_ext_k,
+               z_base_atual, z_topo_atual,
+               ang_inicio_arco, ang_fim_arco,
+               segmentos_curva_degrau
+           );
+           z_topo_anterior = z_topo_atual;
+       }
+   }
 
 
-    // --- 2. Desenhar Arquibancadas (Degraus) ---
-    glColor3f(1.0f, 1.0f, 1.0f);
-    glBindTexture(GL_TEXTURE_2D, idTexturaConcreto);
+   // --- 3. Desenhar Paredes Externas e Tampas ---
+   glColor3f(0.9f, 0.9f, 0.9f);
+   glBindTexture(GL_TEXTURE_2D, idTexturaConcretoExterno);
 
-    for (int i = 0; i < num_arcos_principais; ++i) {
-        float ang_inicio_arco = arcos_principais[i][0];
-        float ang_fim_arco = arcos_principais[i][1];
-        float z_topo_anterior = Z_BASE_INICIAL;
+    const float INCLINACAO_MARQUISE_EXTRA = 0.10f; // Inclinação *adicional* à base da marquise
+    const float ALTURA_INICIO_MARQUISE_FATOR = 1.05f; // Começa 5% acima da parede superior
+    const float ALTURA_FIM_MARQUISE_FATOR = 1.4f;
+ 
+   // Desenha as Paredes Principais (PADRÃO - até altura_max_parede_padrao)
+   for (int i = 0; i < num_arcos_principais; ++i) {
+       float ang_inicio_arco = arcos_principais[i][0];
+       float ang_fim_arco = arcos_principais[i][1];
+       desenharParedeExterna(
+           centro_x, centro_y,
+           raio_x_geral_ext, raio_y_geral_ext,           // Base padrão
+           rx_topo_parede_padrao, ry_topo_parede_padrao, // Topo padrão
+           Z_BASE_INICIAL, altura_max_parede_padrao,     // Altura padrão
+           ang_inicio_arco, ang_fim_arco, segmentos_curva_parede
+       );
+   }
 
-        bool secao_especial = false;
-        if (fabs(ang_inicio_arco - 140.0f) < FLOAT_COMPARISON_TOLERANCE) {
-            secao_especial = true;
-        }
+   // Desenha as Paredes de Conexão
+   for (int i = 0; i < num_arcos_conexao; ++i) {
+       float ang_inicio_arco = arcos_conexao[i][0];
+       float ang_fim_arco = arcos_conexao[i][1];
+       desenharParedeExterna(
+           centro_x, centro_y,
+           raio_x_geral_ext, raio_y_geral_ext,           // Base padrão
+           rx_topo_parede_padrao, ry_topo_parede_padrao, // Topo padrão
+           Z_BASE_INICIAL, altura_arco_conexao,          // Altura de conexão (usando seu valor *7)
+           ang_inicio_arco, ang_fim_arco, segmentos_curva_parede
+       );
+   }
 
-        // Define parâmetros PARA ESTE ARCO (padrão ou especial)
-        int num_degraus_atual = NUM_DEGRAUS;
-        float altura_max_atual = ALTURA_MAX_ESC;
-        // Usa larguras radiais padrão por default
-        float largura_radial_x_atual = largura_radial_x_padrao;
-        float largura_radial_y_atual = largura_radial_y_padrao;
+   // Desenha a PAREDE SUPERIOR ADICIONAL (140-220) 
+   desenharParedeExterna(
+       centro_x, centro_y,
+       rx_base_parede_superior, ry_base_parede_superior, // Base = Topo da parede padrão
+       rx_topo_parede_superior, ry_topo_parede_superior, // Topo = Mais inclinado
+       z_base_parede_superior, z_topo_parede_superior,   // Altura = Acima da parede padrão
+       140.0f, 220.0f,                                   // Apenas neste ângulo
+       segmentos_curva_parede
+   );
 
-        if (secao_especial) {
-            num_degraus_atual = num_degraus_secao_especial;
-            altura_max_atual = altura_max_secao_especial;
-            // *** USA AS LARGURAS RADIAIS ESPECIAIS (maiores) ***
-            largura_radial_x_atual = largura_radial_x_especial;
-            largura_radial_y_atual = largura_radial_y_especial;
-            // printf("Aplicando parâmetros especiais ao arco %.1f-%.1f\n", ang_inicio_arco, ang_fim_arco);
-        }
-
-        // Desenha os degraus
-        for (int k = 0; k < num_degraus_atual; ++k) {
-            float z_topo_atual = Z_BASE_INICIAL + (altura_max_atual - Z_BASE_INICIAL) * ((float)(k + 1) / num_degraus_atual);
-            float z_base_atual = z_topo_anterior;
-
-            // Calcula raios interno/externo para degrau k
-            // Ambos começam do raio interno PADRÃO (raio_x/y_geral_int)
-            // e usam a largura radial ATUAL (padrão ou especial)
-            float fracao_raio_int = (float)k / num_degraus_atual;
-            float fracao_raio_ext = (float)(k + 1) / num_degraus_atual;
-            float rx_int_k = raio_x_geral_int + largura_radial_x_atual * fracao_raio_int;
-            float ry_int_k = raio_y_geral_int + largura_radial_y_atual * fracao_raio_int;
-            float rx_ext_k = raio_x_geral_int + largura_radial_x_atual * fracao_raio_ext;
-            float ry_ext_k = raio_y_geral_int + largura_radial_y_atual * fracao_raio_ext;
-
-            // *** REMOVE O CLAMPING: Permite que rx/y_ext_k excedam raio_x/y_geral_ext ***
-            // if (rx_ext_k > raio_x_geral_ext) rx_ext_k = raio_x_geral_ext; // REMOVIDO
-            // if (ry_ext_k > raio_y_geral_ext) ry_ext_k = raio_y_geral_ext; // REMOVIDO
-
-            desenharDegrauArquibancada(
-                centro_x, centro_y,
-                rx_int_k, ry_int_k, rx_ext_k, ry_ext_k,
-                z_base_atual, z_topo_atual,
-                ang_inicio_arco, ang_fim_arco,
-                segmentos_curva_degrau
-            );
-            z_topo_anterior = z_topo_atual;
-        }
-    }
-
-    // --- 3. Desenhar Paredes Externas e Tampas ---
+   //Desenha Marquise
+   desenharMarquiseCobertura(
+    centro_x, centro_y,
+    rx_base_marquise, ry_base_marquise, z_base_marquise,     // Base da marquise
+    rx_frente_marquise, ry_frente_marquise, z_frente_marquise, // Frente da marquise
+    180.0f, 220.0f,                                          // Ângulo (segunda metade da seção especial)
+    segmentos_curva_parede / 2                               // Resolução (ajuste se necessário)
+    );
+    // Restaurar cor/textura da parede se necessário
     glColor3f(0.9f, 0.9f, 0.9f);
     glBindTexture(GL_TEXTURE_2D, idTexturaConcretoExterno);
 
-    // Cálculos da parede (SEM ALTERAÇÕES - usam raios/altura padrão)
-    float rx_base_parede = raio_x_geral_ext;
-    float ry_base_parede = raio_y_geral_ext;
-    float rx_topo_parede = rx_base_parede + INCLINACAO_PAREDE_OFFSET;
-    float ry_topo_parede = ry_base_parede + INCLINACAO_PAREDE_OFFSET;
 
-    // Desenha as Paredes Principais (SEM ALTERAÇÕES - altura padrão)
-    for (int i = 0; i < num_arcos_principais; ++i) {
-        float ang_inicio_arco = arcos_principais[i][0];
-        float ang_fim_arco = arcos_principais[i][1];
-        desenharParedeExterna(
-            centro_x, centro_y,
-            rx_base_parede, ry_base_parede, rx_topo_parede, ry_topo_parede,
-            Z_BASE_INICIAL, ALTURA_MAX_ESC, // Usa altura PADRÃO
-            ang_inicio_arco, ang_fim_arco, segmentos_curva_parede
-        );
-    }
+   // Desenha as Tampas Laterais (pulando 0, 140, 220, 360)
+   float altura_interna_tampa = altura_arco_conexao; // Altura interna da tampa é sempre a de conexão
+   for (int i = 0; i < num_arcos_principais; ++i) {
+       float ang_inicio_arco = arcos_principais[i][0];
+       float ang_fim_arco = arcos_principais[i][1];
 
-    // Desenha as Paredes de Conexão (SEM ALTERAÇÕES)
-    for (int i = 0; i < num_arcos_conexao; ++i) {
-        
-        float ang_inicio_arco = arcos_conexao[i][0];
-        float ang_fim_arco = arcos_conexao[i][1];
-        desenharParedeExterna(
-            centro_x, centro_y,
-            rx_base_parede, ry_base_parede, rx_topo_parede, ry_topo_parede,
-            Z_BASE_INICIAL, altura_arco_conexao,
-            ang_inicio_arco, ang_fim_arco, segmentos_curva_parede
-        );
-    }
+       // *** ALTERADO/CONFIRMADO: Lógica para pular tampas e ajustar adjacentes ***
+       // Verifica se a tampa INICIAL deve ser desenhada
+       bool desenhar_tampa_inicial =
+              fabs(ang_inicio_arco -   0.0f) > FLOAT_COMPARISON_TOLERANCE
+           && fabs(ang_inicio_arco - 140.0f) > FLOAT_COMPARISON_TOLERANCE
+           && fabs(ang_inicio_arco - 220.0f) > FLOAT_COMPARISON_TOLERANCE;
 
-    // Desenha as Tampas Laterais
-    float altura_interna_tampa = altura_arco_conexao; // Altura interna da tampa é sempre a de conexão
-    for (int i = 0; i < num_arcos_principais; ++i) {
-        float ang_inicio_arco = arcos_principais[i][0];
-        float ang_fim_arco = arcos_principais[i][1];
+       if (desenhar_tampa_inicial) {
+            // Determina parâmetros do TOPO EXTERNO para a tampa INICIAL
+            float rx_final_topo_ext = rx_topo_parede_padrao;      // Default
+            float ry_final_topo_ext = ry_topo_parede_padrao;
+            float z_final_topo_ext = altura_max_parede_padrao;
 
-        // --- Lógica para determinar parâmetros do topo EXTERNO da tampa ---
-        // Por padrão, usa os parâmetros da parede normal
-        float rx_topo_ext_tampa = rx_topo_parede;
-        float ry_topo_ext_tampa = ry_topo_parede;
-        float z_topo_ext_tampa = ALTURA_MAX_ESC;
+            // Se a tampa inicial for em 240 graus, ela encontra a parede superior que termina em 220
+            if (fabs(ang_inicio_arco - 240.0f) < FLOAT_COMPARISON_TOLERANCE) {
+                rx_final_topo_ext = rx_topo_parede_superior; // Usa topo da parede superior
+                ry_final_topo_ext = ry_topo_parede_superior;
+                z_final_topo_ext = z_topo_parede_superior;
+            }
 
-        // Se o *início* deste arco for 140 ou 220 (adjacente à seção especial)
-        // OU se o *fim* do arco *anterior* for 140 ou 220 (também adjacente)
-        // --> O topo externo da tampa deve usar os parâmetros da seção especial
-
-        // Verifica se o início ou fim deste arco coincide com os limites da seção especial
-        bool inicio_na_juncao = (fabs(ang_inicio_arco - 140.0f) < FLOAT_COMPARISON_TOLERANCE || fabs(ang_inicio_arco - 220.0f) < FLOAT_COMPARISON_TOLERANCE);
-        bool fim_na_juncao = (fabs(ang_fim_arco - 140.0f) < FLOAT_COMPARISON_TOLERANCE || fabs(ang_fim_arco - 220.0f) < FLOAT_COMPARISON_TOLERANCE);
-
-        // Se a tampa for em 140 ou 220 graus, use os parâmetros externos da seção especial
-        if (inicio_na_juncao) {
-             rx_topo_ext_tampa = raio_x_ext_especial; // Usa raio externo maior
-             ry_topo_ext_tampa = raio_y_ext_especial; // Usa raio externo maior
-             z_topo_ext_tampa = altura_max_secao_especial; // Usa altura maior
-             // printf("Tampa inicial em %.1f usando params especiais\n", ang_inicio_arco); // Debug
-        }
-         if (fim_na_juncao) {
-             // Note: A tampa no *fim* de um arco também usa os parâmetros da seção especial se o ângulo for 140/220
-             //       pois ela precisa "encontrar" a seção especial que começa/termina ali.
-             rx_topo_ext_tampa = raio_x_ext_especial;
-             ry_topo_ext_tampa = raio_y_ext_especial;
-             z_topo_ext_tampa = altura_max_secao_especial;
-             // printf("Tampa final em %.1f usando params especiais\n", ang_fim_arco); // Debug
-        }
+            desenharTampaLateral(
+               centro_x, centro_y, ang_inicio_arco,
+               raio_x_geral_int, raio_y_geral_int, Z_BASE_INICIAL,      // Base interna
+               raio_x_geral_ext, raio_y_geral_ext, Z_BASE_INICIAL,      // Base externa
+               rx_final_topo_ext, ry_final_topo_ext, z_final_topo_ext, // Topo externo (Calculado)
+               raio_x_geral_int, raio_y_geral_int, altura_interna_tampa // Topo interno
+            );
+       }
 
 
-        // Desenha a tampa INICIAL (pulando 0 graus)
-        if (fabs(ang_inicio_arco - 0.0f) > FLOAT_COMPARISON_TOLERANCE) {
-             // Determina os parâmetros corretos para o topo externo desta tampa específica
-             float rx_final_tampa_ini = (fabs(ang_inicio_arco - 140.0f) < FLOAT_COMPARISON_TOLERANCE || fabs(ang_inicio_arco - 220.0f) < FLOAT_COMPARISON_TOLERANCE) ? raio_x_ext_especial : rx_topo_parede;
-             float ry_final_tampa_ini = (fabs(ang_inicio_arco - 140.0f) < FLOAT_COMPARISON_TOLERANCE || fabs(ang_inicio_arco - 220.0f) < FLOAT_COMPARISON_TOLERANCE) ? raio_y_ext_especial : ry_topo_parede;
-             float z_final_tampa_ini  = (fabs(ang_inicio_arco - 140.0f) < FLOAT_COMPARISON_TOLERANCE || fabs(ang_inicio_arco - 220.0f) < FLOAT_COMPARISON_TOLERANCE) ? altura_max_secao_especial : ALTURA_MAX_ESC;
+       // Verifica se a tampa FINAL deve ser desenhada
+       bool desenhar_tampa_final =
+              fabs(ang_fim_arco - 360.0f) > FLOAT_COMPARISON_TOLERANCE
+           && fabs(ang_fim_arco - 140.0f) > FLOAT_COMPARISON_TOLERANCE
+           && fabs(ang_fim_arco - 220.0f) > FLOAT_COMPARISON_TOLERANCE;
 
-             desenharTampaLateral(
-                centro_x, centro_y, ang_inicio_arco,
-                raio_x_geral_int, raio_y_geral_int, Z_BASE_INICIAL,      // Base interna (padrão)
-                rx_base_parede, ry_base_parede, Z_BASE_INICIAL,          // Base externa (padrão)
-                rx_final_tampa_ini, ry_final_tampa_ini, z_final_tampa_ini, // Topo externo (pode ser especial)
-                raio_x_geral_int, raio_y_geral_int, altura_interna_tampa // Topo interno (padrão)
-             );
-        }
+       if (desenhar_tampa_final) {
+            // Determina parâmetros do TOPO EXTERNO para a tampa FINAL
+            float rx_final_topo_ext = rx_topo_parede_padrao;      // Default
+            float ry_final_topo_ext = ry_topo_parede_padrao;
+            float z_final_topo_ext = altura_max_parede_padrao;
 
-        // Desenha a tampa FINAL (pulando 360 graus)
-        if (fabs(ang_fim_arco - 360.0f) > FLOAT_COMPARISON_TOLERANCE) {
-            // Determina os parâmetros corretos para o topo externo desta tampa específica
-             float rx_final_tampa_fim = (fabs(ang_fim_arco - 140.0f) < FLOAT_COMPARISON_TOLERANCE || fabs(ang_fim_arco - 220.0f) < FLOAT_COMPARISON_TOLERANCE) ? raio_x_ext_especial : rx_topo_parede;
-             float ry_final_tampa_fim = (fabs(ang_fim_arco - 140.0f) < FLOAT_COMPARISON_TOLERANCE || fabs(ang_fim_arco - 220.0f) < FLOAT_COMPARISON_TOLERANCE) ? raio_y_ext_especial : ry_topo_parede;
-             float z_final_tampa_fim  = (fabs(ang_fim_arco - 140.0f) < FLOAT_COMPARISON_TOLERANCE || fabs(ang_fim_arco - 220.0f) < FLOAT_COMPARISON_TOLERANCE) ? altura_max_secao_especial : ALTURA_MAX_ESC;
+            // Se a tampa final for em 120 graus, ela encontra a parede superior que começa em 140
+            if (fabs(ang_fim_arco - 120.0f) < FLOAT_COMPARISON_TOLERANCE) {
+                rx_final_topo_ext = rx_topo_parede_superior; // Usa topo da parede superior
+                ry_final_topo_ext = ry_topo_parede_superior;
+                z_final_topo_ext = z_topo_parede_superior;
+            }
 
-             desenharTampaLateral(
-                centro_x, centro_y, ang_fim_arco,
-                raio_x_geral_int, raio_y_geral_int, Z_BASE_INICIAL,      // Base interna (padrão)
-                rx_base_parede, ry_base_parede, Z_BASE_INICIAL,          // Base externa (padrão)
-                rx_final_tampa_fim, ry_final_tampa_fim, z_final_tampa_fim, // Topo externo (pode ser especial)
-                raio_x_geral_int, raio_y_geral_int, altura_interna_tampa // Topo interno (padrão)
-             );
-        }
-    }
+            desenharTampaLateral(
+               centro_x, centro_y, ang_fim_arco,
+               raio_x_geral_int, raio_y_geral_int, Z_BASE_INICIAL,      // Base interna
+               raio_x_geral_ext, raio_y_geral_ext, Z_BASE_INICIAL,      // Base externa
+               rx_final_topo_ext, ry_final_topo_ext, z_final_topo_ext, // Topo externo (Calculado)
+               raio_x_geral_int, raio_y_geral_int, altura_interna_tampa // Topo interno
+            );
+       }
+   } // Fim loop for (para tampas)
 
-    glBindTexture(GL_TEXTURE_2D, 0);
-    glutSwapBuffers();
+   glBindTexture(GL_TEXTURE_2D, 0);
+   glutSwapBuffers();
 }
 
 // --- Função de callback: Inicialização ---
