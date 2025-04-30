@@ -20,12 +20,11 @@ As dimensões utilizadas para as arquibancadas, degraus (batentes), paredes e ma
 *   **Visualização 3D:** Projeção perspectiva (`gluPerspective`) e teste de profundidade (`GL_DEPTH_TEST`).
 *   **Câmera Interativa:**
     *   Movimentação livre (cima/baixo 'W'/'S', frente/trás 'J'/'K') relativa à direção da câmera.
-    *   Rotação da visão horizontal (esquerda/direita 'A'/'D' e arrastar mouse com botão esquerdo).
+    *   Rotação da visão horizontal curva de Bezier (esquerda/direita 'A'/'D' e arrastar mouse com botão esquerdo).
 *   **Ciclo Dia/Noite Automático:**
     *   Transição visual suave entre dia (céu claro) e noite (cena escurecida).
     *   Realizada através de um filtro de cor semi-transparente desenhado sobre a tela, cuja opacidade (`alphaFiltro`) varia ao longo do tempo controlada por `glutTimerFunc`.
     *   O ciclo alterna automaticamente entre os modos dia e noite via `glutIdleFunc`.
-*   **(Código Experimental)** Inclui código para cálculo de pontos em uma curva de Bézier cúbica, que poderia ser usado para um modo alternativo de movimentação da câmera (atualmente não ativado nos controles principais).
 
 ## Evolução do Desenvolvimento
 
@@ -37,8 +36,7 @@ O código evoluiu através das seguintes etapas principais:
 4.  **Câmera e Interação Inicial:** Implementação de câmera 3D (`gluPerspective`, `gluLookAt`) e controles básicos de teclado para rotação/zoom do *objeto*.
 5.  **Câmera Interativa Aprimorada:** Modificação dos controles de teclado (WASDJK) para movimentação da *câmera* e adição de rotação horizontal via mouse.
 6.  **Ciclo Dia/Noite:** Implementação do sistema de transição automática dia/noite com filtro alfa.
-7.  **(Exploração)** Adição de código para cálculo de curva de Bezier como uma alternativa potencial para a trajetória da câmera.
-8.  **(Tentativa)** Exploração inicial de adição de fontes de luz OpenGL (`glLightfv`) para refletores (não funcional no estado atual devido à ausência de cálculo de vetores normais na geometria customizada).
+7.  **(Exploração)** Adição de código para cálculo de curva de Bezier para a trajetória da câmera.
 
 ## Pré-requisitos e Dependências
 
@@ -105,7 +103,6 @@ Após a compilação bem-sucedida, execute o programa a partir do mesmo diretór
     *   Calcular e adicionar vetores normais (`glNormal3f`) a todas as superfícies desenhadas customizadas (paredes, degraus, marquise, tampas).
     *   Implementar fontes de luz (`glLightfv`) para simular o sol (dia) e os refletores (noite), ativando/desativando-as de acordo com o ciclo dia/noite.
     *   Explorar técnicas de sombreamento (como shadow mapping, se avançar para shaders) para maior realismo.
-*   **Câmera de Bezier:** Ativar e integrar os controles para a movimentação da câmera ao longo da curva de Bezier pré-definida como um modo de visualização alternativo (ex: tour cinematográfico).
 *   **Otimização:** Para cenas mais complexas, otimizar o desenho usando Vertex Arrays ou VBOs em vez de `glBegin/glEnd` (modo imediato).
 *   **Detalhes Visuais:** Adicionar mais detalhes ao modelo (postes, placar, etc.) e usar texturas de maior resolução ou mais variadas.
 
