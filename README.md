@@ -90,15 +90,21 @@ Após a compilação bem-sucedida, execute o programa a partir do mesmo diretór
     .\almeidao_app.exe
     ```
 
-## Controles
-
+*   **Controles:**
 Use o teclado para interagir com a simulação:
 
-*   **A / D:** Girar a visualização em torno do eixo Z.
-*   **W / S:** Girar a visualização em torno do eixo Y.
-*   **X / Z:** Girar a visualização em torno do eixo X.
-*   **J:** Afastar a câmera (aumentar zoom out).
-*   **K:** Aproximar a câmera (aumentar zoom in).
-*   **ESC:** Fechar a janela e sair do programa.
+A / D: Girar a visualização horizontalmente (em torno do eixo vertical Y — rotação da câmera).
+
+W / S: Girar a visualização em torno do eixo Y (objeto).
+
+X / Z: Girar a visualização em torno do eixo X (objeto).
+
+J: Afastar a câmera (zoom out).
+
+K: Aproximar a câmera (zoom in).
+
+ESC: Fechar a janela e sair do programa.
+
+Observação: a rotação da câmera (A/D) move o ponto de vista do observador, enquanto os outros comandos rotacionam o objeto.
 
 ---
