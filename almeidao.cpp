@@ -77,6 +77,45 @@ void atualizarTransicao(int valor) {
     glutTimerFunc(100, atualizarTransicao, 0);  // Chama a função novamente após 100ms
 }
 
+void configurarIluminacao() {
+    glEnable(GL_LIGHTING); // Habilita o sistema de iluminação
+    glEnable(GL_LIGHT0);   // Habilita a luz 0
+
+    // Cor da luz ambiente (luz geral que atinge todas as superfícies uniformemente)
+    GLfloat luz_ambiente[] = { 0.4f, 0.4f, 0.4f, 1.0f };
+    GLfloat luz_difusa[] = { 1.0f, 0.95f, 0.8f, 1.0f };
+    GLfloat luz_especular[] = { 0.8f, 0.8f, 0.7f, 1.0f };
+    
+    GLfloat posicao_luz[] = { 1.0f, 1.0f, -0.7f, 0.0f }; // Ajuste os valores x, y, z conforme necessário para a posição exata do sol desejada
+
+    glLightfv(GL_LIGHT0, GL_AMBIENT, luz_ambiente);
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, luz_difusa);
+    glLightfv(GL_LIGHT0, GL_SPECULAR, luz_especular);
+    glLightfv(GL_LIGHT0, GL_POSITION, posicao_luz); // Define a direção da luz direcional
+}
+
+void aplicarMaterialBasico() {
+    GLfloat material_ambiente[] = { 0.7f, 0.7f, 0.7f, 1.0f };
+    GLfloat material_difuso[] = { 0.8f, 0.8f, 0.8f, 1.0f };
+    GLfloat material_especular[] = { 0.3f, 0.3f, 0.3f, 1.0f };
+    GLfloat brilho = 16.0f;
+
+    glMaterialfv(GL_FRONT, GL_AMBIENT, material_ambiente);
+    glMaterialfv(GL_FRONT, GL_DIFFUSE, material_difuso);
+    glMaterialfv(GL_FRONT, GL_SPECULAR, material_especular);
+    glMaterialf(GL_FRONT, GL_SHININESS, brilho);
+}
+
+void desenharCampo() {
+    aplicarMaterialBasico();
+    glNormal3f(0.0f, 1.0f, 0.0f); // Normal para cima
+    glBegin(GL_QUADS);
+        glVertex3f(-10.0f, 0.0f, -10.0f);
+        glVertex3f(-10.0f, 0.0f, 10.0f);
+        glVertex3f(10.0f, 0.0f, 10.0f);
+        glVertex3f(10.0f, 0.0f, -10.0f);
+    glEnd();
+}
 
 //  Função para capturar o clique do mouse
 void mouse(int botao, int estado, int x, int y) {
@@ -183,92 +222,107 @@ void desenharDegrauArquibancada(float cx, float cy,
     float rad_final = GRAUS_PARA_RAD(angulo_final_graus);
     float intervalo_rad = rad_final - rad_inicial;
 
-    // --- Face Superior (Topo) ---
+// --- Face Superior (Topo) ---
     glBegin(GL_TRIANGLE_STRIP);
     for (int i = 0; i <= num_segmentos_curva; i++) {
         float fracao = (float)i / (float)num_segmentos_curva;
         float angulo_atual_rad = rad_inicial + fracao * intervalo_rad;
         float cos_a = cosf(angulo_atual_rad);
         float sin_a = sinf(angulo_atual_rad);
-        float s_coord = fracao * 5.0f; // Repetição de textura ao longo do arco
-        glTexCoord2f(s_coord, 1.0f); // Coord T = 1 (borda externa da textura?)
+        float s_coord = fracao * 5.0f;
+
+        glNormal3f(0.0f, 0.0f, 1.0f); // Normal para cima
+        glTexCoord2f(s_coord, 1.0f);
         glVertex3f(cx + rx_ext * cos_a, cy + ry_ext * sin_a, z_topo);
-        glTexCoord2f(s_coord, 0.0f); // Coord T = 0 (borda interna da textura?)
+
+        glTexCoord2f(s_coord, 0.0f);
         glVertex3f(cx + rx_int * cos_a, cy + ry_int * sin_a, z_topo);
     }
     glEnd();
 
-    // --- Face Frontal (Vertical) ---
+// --- Face Frontal (Vertical) ---
     glBegin(GL_TRIANGLE_STRIP);
     for (int i = 0; i <= num_segmentos_curva; i++) {
         float fracao = (float)i / (float)num_segmentos_curva;
         float angulo_atual_rad = rad_inicial + fracao * intervalo_rad;
         float cos_a = cosf(angulo_atual_rad);
         float sin_a = sinf(angulo_atual_rad);
-        float s_coord = fracao * 5.0f; // Repetição de textura ao longo do arco
-        glTexCoord2f(s_coord, 1.0f); // Coord T = 1 (topo da face vertical)
+        float s_coord = fracao * 5.0f;
+
+        // Normal radial apontando para fora (na direção da curva)
+        glNormal3f(cos_a, sin_a, 0.0f);
+
+        glTexCoord2f(s_coord, 1.0f);
         glVertex3f(cx + rx_int * cos_a, cy + ry_int * sin_a, z_topo);
-        glTexCoord2f(s_coord, 0.0f); // Coord T = 0 (base da face vertical)
+
+        glTexCoord2f(s_coord, 0.0f);
         glVertex3f(cx + rx_int * cos_a, cy + ry_int * sin_a, z_base);
     }
     glEnd();
 }
 
+
 void desenharParedeExterna(float cx, float cy,
-                           float rx_base, float ry_base, float rx_topo, float ry_topo,
-                           float z_baixo, float z_alto,
-                           float angulo_inicial_graus, float angulo_final_graus,
-                           int num_segmentos_curva) {
+    float rx_base, float ry_base, float rx_topo, float ry_topo,
+    float z_baixo, float z_alto,
+    float angulo_inicial_graus, float angulo_final_graus,
+    int num_segmentos_curva) {
     if (num_segmentos_curva <= 1) num_segmentos_curva = 2;
     float rad_inicial = GRAUS_PARA_RAD(angulo_inicial_graus);
     float rad_final = GRAUS_PARA_RAD(angulo_final_graus);
     float intervalo_rad = rad_final - rad_inicial;
 
-    // --- Face da Parede ---
     glBegin(GL_TRIANGLE_STRIP);
     for (int i = 0; i <= num_segmentos_curva; i++) {
         float fracao = (float)i / (float)num_segmentos_curva;
         float angulo_atual_rad = rad_inicial + fracao * intervalo_rad;
         float cos_a = cosf(angulo_atual_rad);
         float sin_a = sinf(angulo_atual_rad);
-        float s_coord = fracao * 10.0f; // Repetição de textura (talvez maior para paredes)
-        glTexCoord2f(s_coord, 1.0f); // Coord T = 1 (topo da parede)
+        float s_coord = fracao * 10.0f;
+
+        glNormal3f(cos_a, sin_a, 0.0f);
+
+        glTexCoord2f(s_coord, 1.0f);
         glVertex3f(cx + rx_topo * cos_a, cy + ry_topo * sin_a, z_alto);
-        glTexCoord2f(s_coord, 0.0f); // Coord T = 0 (base da parede)
+
+        glTexCoord2f(s_coord, 0.0f);
         glVertex3f(cx + rx_base * cos_a, cy + ry_base * sin_a, z_baixo);
     }
     glEnd();
 }
 
 void desenharTampaLateral(float cx, float cy, float angulo_graus,
-                          float rx_int_base, float ry_int_base, float z_int_base,
-                          float rx_ext_base, float ry_ext_base, float z_ext_base,
-                          float rx_ext_topo, float ry_ext_topo, float z_ext_topo,
-                          float rx_int_topo, float ry_int_topo, float z_int_topo) {
+                        float rx_int_base, float ry_int_base, float z_int_base,
+                        float rx_ext_base, float ry_ext_base, float z_ext_base,
+                        float rx_ext_topo, float ry_ext_topo, float z_ext_topo,
+                        float rx_int_topo, float ry_int_topo, float z_int_topo) {
     float angulo_rad = GRAUS_PARA_RAD(angulo_graus);
     float cos_a = cosf(angulo_rad);
     float sin_a = sinf(angulo_rad);
 
-    // Vértices do quadrilátero da tampa
-    float v1[3] = {cx + rx_int_base * cos_a, cy + ry_int_base * sin_a, z_int_base}; // Interno, Base
-    float v2[3] = {cx + rx_ext_base * cos_a, cy + ry_ext_base * sin_a, z_ext_base}; // Externo, Base
-    float v3[3] = {cx + rx_ext_topo * cos_a, cy + ry_ext_topo * sin_a, z_ext_topo}; // Externo, Topo
-    float v4[3] = {cx + rx_int_topo * cos_a, cy + ry_int_topo * sin_a, z_int_topo}; // Interno, Topo
+    float v1[3] = {cx + rx_int_base * cos_a, cy + ry_int_base * sin_a, z_int_base};
+    float v2[3] = {cx + rx_ext_base * cos_a, cy + ry_ext_base * sin_a, z_ext_base};
+    float v3[3] = {cx + rx_ext_topo * cos_a, cy + ry_ext_topo * sin_a, z_ext_topo};
+    float v4[3] = {cx + rx_int_topo * cos_a, cy + ry_int_topo * sin_a, z_int_topo};
 
-    // --- Tampa (Quadrilátero) ---
     glBegin(GL_QUADS);
-        glTexCoord2f(0.0f, 0.0f); glVertex3fv(v1); // Canto inf-int
-        glTexCoord2f(1.0f, 0.0f); glVertex3fv(v2); // Canto inf-ext
-        glTexCoord2f(1.0f, 1.0f); glVertex3fv(v3); // Canto sup-ext
-        glTexCoord2f(0.0f, 1.0f); glVertex3fv(v4); // Canto sup-int
+    // Normal perpendicular ao plano lateral
+    glNormal3f(cos_a, sin_a, 0.0f);
+
+    glTexCoord2f(0.0f, 0.0f); glVertex3fv(v1);
+    glTexCoord2f(1.0f, 0.0f); glVertex3fv(v2);
+    glTexCoord2f(1.0f, 1.0f); glVertex3fv(v3);
+    glTexCoord2f(0.0f, 1.0f); glVertex3fv(v4);
     glEnd();
 }
 
+
 void desenharMarquiseCobertura(float cx, float cy,
-    float rx_base, float ry_base, float z_base, // Ponto de trás/base
-    float rx_frente, float ry_frente, float z_frente, float espessura,
-    float angulo_inicial_graus, float angulo_final_graus,
-    int num_segmentos_curva) {
+                            float rx_base, float ry_base, float z_base,
+                            float rx_frente, float ry_frente, float z_frente,
+                            float espessura,
+                            float angulo_inicial_graus, float angulo_final_graus,
+                            int num_segmentos_curva) {
     if (num_segmentos_curva <= 1) num_segmentos_curva = 2;
     float z_base_inf = z_base - espessura;
     float z_frente_inf = z_frente - espessura;
@@ -277,106 +331,89 @@ void desenharMarquiseCobertura(float cx, float cy,
     float rad_final = GRAUS_PARA_RAD(angulo_final_graus);
     float intervalo_rad = rad_final - rad_inicial;
 
-    // --- 1. Superfície SUPERIOR ---
-    glColor3f(0.7f, 0.7f, 0.75f); // Cor da superfície superior
-    // glBindTexture(GL_TEXTURE_2D, idTexturaMarquiseTopo); // Textura Topo
+    // 1. Superfície Superior
     glBegin(GL_TRIANGLE_STRIP);
     for (int i = 0; i <= num_segmentos_curva; i++) {
-        float fracao = (float)i / (float)num_segmentos_curva;
-        float angulo_atual_rad = rad_inicial + fracao * intervalo_rad;
-        float cos_a = cosf(angulo_atual_rad); float sin_a = sinf(angulo_atual_rad);
-        float s_coord = fracao;
-        // Vértice Trás/Base (Superior)
-        glTexCoord2f(s_coord, 1.0f); glVertex3f(cx + rx_base * cos_a, cy + ry_base * sin_a, z_base);
-        // Vértice Frente (Superior)
-        glTexCoord2f(s_coord, 0.0f); glVertex3f(cx + rx_frente * cos_a, cy + ry_frente * sin_a, z_frente);
+        float f = (float)i / num_segmentos_curva;
+        float ang = rad_inicial + f * intervalo_rad;
+        float cos_a = cosf(ang), sin_a = sinf(ang);
+        glNormal3f(0, 0, 1); // Para cima
+        glTexCoord2f(f, 1.0f); glVertex3f(cx + rx_base * cos_a, cy + ry_base * sin_a, z_base);
+        glTexCoord2f(f, 0.0f); glVertex3f(cx + rx_frente * cos_a, cy + ry_frente * sin_a, z_frente);
     }
     glEnd();
 
-    // --- 2. Superfície INFERIOR ---
-    glColor3f(0.6f, 0.6f, 0.65f); // Cor um pouco mais escura para baixo
-    // glBindTexture(GL_TEXTURE_2D, idTexturaMarquiseFundo); // Textura Fundo
+    // 2. Superfície Inferior
     glBegin(GL_TRIANGLE_STRIP);
     for (int i = 0; i <= num_segmentos_curva; i++) {
-        float fracao = (float)i / (float)num_segmentos_curva;
-        float angulo_atual_rad = rad_inicial + fracao * intervalo_rad;
-        float cos_a = cosf(angulo_atual_rad); float sin_a = sinf(angulo_atual_rad);
-        float s_coord = fracao;
-        // Vértice Trás/Base (Inferior) - Ordem invertida para face apontar para baixo? Testar.
-        // Ou manter ordem e usar glFrontFace(GL_CW) / glCullFace(GL_FRONT) se culling estiver ativo.
-        // Vamos manter a ordem por enquanto:
-        glTexCoord2f(s_coord, 1.0f); glVertex3f(cx + rx_base * cos_a, cy + ry_base * sin_a, z_base_inf);
-        // Vértice Frente (Inferior)
-        glTexCoord2f(s_coord, 0.0f); glVertex3f(cx + rx_frente * cos_a, cy + ry_frente * sin_a, z_frente_inf);
+        float f = (float)i / num_segmentos_curva;
+        float ang = rad_inicial + f * intervalo_rad;
+        float cos_a = cosf(ang), sin_a = sinf(ang);
+        glNormal3f(0, 0, -1); // Para baixo
+        glTexCoord2f(f, 1.0f); glVertex3f(cx + rx_base * cos_a, cy + ry_base * sin_a, z_base_inf);
+        glTexCoord2f(f, 0.0f); glVertex3f(cx + rx_frente * cos_a, cy + ry_frente * sin_a, z_frente_inf);
     }
     glEnd();
 
-    // --- 3. Borda FRONTAL (Espessura) ---
-    glColor3f(0.65f, 0.65f, 0.7f); // Cor da borda
-    // glBindTexture(GL_TEXTURE_2D, idTexturaMarquiseBorda); // Textura Borda
+    // 3. Borda Frontal (curva)
     glBegin(GL_TRIANGLE_STRIP);
     for (int i = 0; i <= num_segmentos_curva; i++) {
-        float fracao = (float)i / (float)num_segmentos_curva;
-        float angulo_atual_rad = rad_inicial + fracao * intervalo_rad;
-        float cos_a = cosf(angulo_atual_rad); float sin_a = sinf(angulo_atual_rad);
-        float s_coord = fracao;
-        // Vértice Frente (Superior)
-        glTexCoord2f(s_coord, 1.0f); glVertex3f(cx + rx_frente * cos_a, cy + ry_frente * sin_a, z_frente);
-        // Vértice Frente (Inferior)
-        glTexCoord2f(s_coord, 0.0f); glVertex3f(cx + rx_frente * cos_a, cy + ry_frente * sin_a, z_frente_inf);
-    
-
-    // --- 4. Borda TRASEIRA (Espessura - Opcional, pode não ser visível) ---
-    // Se precisar desenhar:
-    
-    glColor3f(0.65f, 0.65f, 0.7f);
-    glBegin(GL_TRIANGLE_STRIP);
-    for (int i = 0; i <= num_segmentos_curva; i++) {
-        float fracao = (float)i / (float)num_segmentos_curva;
-        float angulo_atual_rad = rad_inicial + fracao * intervalo_rad;
-        float cos_a = cosf(angulo_atual_rad); float sin_a = sinf(angulo_atual_rad);
-        float s_coord = fracao;
-        // Vértice Trás/Base (Superior)
-        glTexCoord2f(s_coord, 1.0f); glVertex3f(cx + rx_base * cos_a, cy + ry_base * sin_a, z_base);
-        // Vértice Trás/Base (Inferior)
-        glTexCoord2f(s_coord, 0.0f); glVertex3f(cx + rx_base * cos_a, cy + ry_base * sin_a, z_base_inf);
+        float f = (float)i / num_segmentos_curva;
+        float ang = rad_inicial + f * intervalo_rad;
+        float cos_a = cosf(ang), sin_a = sinf(ang);
+        glNormal3f(cos_a, sin_a, 0); // Radial frontal
+        glTexCoord2f(f, 1.0f); glVertex3f(cx + rx_frente * cos_a, cy + ry_frente * sin_a, z_frente);
+        glTexCoord2f(f, 0.0f); glVertex3f(cx + rx_frente * cos_a, cy + ry_frente * sin_a, z_frente_inf);
     }
     glEnd();
-    }
 
-    // --- 5. Tampas Laterais da Marquise ---
-    // Tampa no ângulo inicial
-    float cos_ini = cosf(rad_inicial); float sin_ini = sinf(rad_inicial);
-    float v1_ini[3] = {cx + rx_frente * cos_ini, cy + ry_frente * sin_ini, z_frente_inf}; // Frente Inf
-    float v2_ini[3] = {cx + rx_base * cos_ini, cy + ry_base * sin_ini, z_base_inf};     // Trás Inf
-    float v3_ini[3] = {cx + rx_base * cos_ini, cy + ry_base * sin_ini, z_base};         // Trás Sup
-    float v4_ini[3] = {cx + rx_frente * cos_ini, cy + ry_frente * sin_ini, z_frente};     // Frente Sup
+    // 4. Borda Traseira
+    glBegin(GL_TRIANGLE_STRIP);
+    for (int i = 0; i <= num_segmentos_curva; i++) {
+        float f = (float)i / num_segmentos_curva;
+        float ang = rad_inicial + f * intervalo_rad;
+        float cos_a = cosf(ang), sin_a = sinf(ang);
+        glNormal3f(-cos_a, -sin_a, 0); // Radial para trás
+        glTexCoord2f(f, 1.0f); glVertex3f(cx + rx_base * cos_a, cy + ry_base * sin_a, z_base);
+        glTexCoord2f(f, 0.0f); glVertex3f(cx + rx_base * cos_a, cy + ry_base * sin_a, z_base_inf);
+    }
+    glEnd();
+
+    // 5. Tampas Laterais
+    float cos_ini = cosf(rad_inicial), sin_ini = sinf(rad_inicial);
+    float cos_fim = cosf(rad_final), sin_fim = sinf(rad_final);
+
+    float v1_ini[3] = {cx + rx_frente * cos_ini, cy + ry_frente * sin_ini, z_frente_inf};
+    float v2_ini[3] = {cx + rx_base * cos_ini, cy + ry_base * sin_ini, z_base_inf};
+    float v3_ini[3] = {cx + rx_base * cos_ini, cy + ry_base * sin_ini, z_base};
+    float v4_ini[3] = {cx + rx_frente * cos_ini, cy + ry_frente * sin_ini, z_frente};
+
     glBegin(GL_QUADS);
-        glTexCoord2f(0.0f, 0.0f); glVertex3fv(v1_ini);
-        glTexCoord2f(1.0f, 0.0f); glVertex3fv(v2_ini);
-        glTexCoord2f(1.0f, 1.0f); glVertex3fv(v3_ini);
-        glTexCoord2f(0.0f, 1.0f); glVertex3fv(v4_ini);
+    glNormal3f(sin_ini, -cos_ini, 0); // Lateral
+    glTexCoord2f(0, 0); glVertex3fv(v1_ini);
+    glTexCoord2f(1, 0); glVertex3fv(v2_ini);
+    glTexCoord2f(1, 1); glVertex3fv(v3_ini);
+    glTexCoord2f(0, 1); glVertex3fv(v4_ini);
     glEnd();
 
-    // Tampa no ângulo final
-    float cos_fim = cosf(rad_final); float sin_fim = sinf(rad_final);
-    float v1_fim[3] = {cx + rx_frente * cos_fim, cy + ry_frente * sin_fim, z_frente_inf}; // Frente Inf
-    float v2_fim[3] = {cx + rx_base * cos_fim, cy + ry_base * sin_fim, z_base_inf};     // Trás Inf
-    float v3_fim[3] = {cx + rx_base * cos_fim, cy + ry_base * sin_fim, z_base};         // Trás Sup
-    float v4_fim[3] = {cx + rx_frente * cos_fim, cy + ry_frente * sin_fim, z_frente};     // Frente Sup
+    float v1_fim[3] = {cx + rx_frente * cos_fim, cy + ry_frente * sin_fim, z_frente_inf};
+    float v2_fim[3] = {cx + rx_base * cos_fim, cy + ry_base * sin_fim, z_base_inf};
+    float v3_fim[3] = {cx + rx_base * cos_fim, cy + ry_base * sin_fim, z_base};
+    float v4_fim[3] = {cx + rx_frente * cos_fim, cy + ry_frente * sin_fim, z_frente};
+
     glBegin(GL_QUADS);
-        // Ordem dos vértices para o Quad apontar para fora no fim do arco
-        glTexCoord2f(0.0f, 0.0f); glVertex3fv(v1_fim); // Frente Inf
-        glTexCoord2f(0.0f, 1.0f); glVertex3fv(v4_fim); // Frente Sup
-        glTexCoord2f(1.0f, 1.0f); glVertex3fv(v3_fim); // Trás Sup
-        glTexCoord2f(1.0f, 0.0f); glVertex3fv(v2_fim); // Trás Inf
+    glNormal3f(-sin_fim, cos_fim, 0); // Lateral oposta
+    glTexCoord2f(0, 0); glVertex3fv(v1_fim);
+    glTexCoord2f(0, 1); glVertex3fv(v4_fim);
+    glTexCoord2f(1, 1); glVertex3fv(v3_fim);
+    glTexCoord2f(1, 0); glVertex3fv(v2_fim);
     glEnd();
 }
 
 
+
 // --- Função de callback: Desenho ---
 void display() {
-    // Limpa os buffers de cor e profundidade
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     // --- Configurações de Câmera e Rotação ---
@@ -402,11 +439,14 @@ void display() {
     glRotatef(anguloRotacaoY, 0.0f, 1.0f, 0.0f); // Rotação em torno do eixo Y global
     glRotatef(anguloRotacaoZ, 0.0f, 0.0f, 1.0f); // Rotação em torno do eixo Z global
 
+
+
    // --- 1. Desenhar o Chão ---
    glColor3f(0.8f, 0.8f, 0.8f);
    glBindTexture(GL_TEXTURE_2D, idTexturaTerra);
    float tamChao = 20.0f;
    float repTexturaChao = 15.0f;
+   glNormal3f(0.0f, 0.0f, 1.0f); // Normal para cima (Z up)
    glBegin(GL_QUADS);
        glTexCoord2f(0.0f, 0.0f);                   glVertex3f(-tamChao, -tamChao, Z_CHAO);
        glTexCoord2f(repTexturaChao, 0.0f);         glVertex3f( tamChao, -tamChao, Z_CHAO);
@@ -414,7 +454,7 @@ void display() {
        glTexCoord2f(0.0f, repTexturaChao);         glVertex3f(-tamChao,  tamChao, Z_CHAO);
    glEnd();
 
-   
+
 
    // --- Parâmetros Comuns & Seção Especial ---
    float centro_x = 0.0f;
@@ -431,7 +471,7 @@ void display() {
    const float altura_max_parede_padrao = ALTURA_MAX_ESC; // Altura padrão explícita
    const float rx_topo_parede_padrao = raio_x_geral_ext + INCLINACAO_PAREDE_OFFSET; // Topo padrão explícito
    const float ry_topo_parede_padrao = raio_y_geral_ext + INCLINACAO_PAREDE_OFFSET;
-   const float altura_arco_conexao = ALTURA_MIN_ESC * 7; 
+   const float altura_arco_conexao = ALTURA_MIN_ESC * 7;
 
    // Arcos
    float arcos_principais[][2] = {
@@ -455,7 +495,7 @@ void display() {
    const float largura_radial_y_especial = raio_y_ext_especial_seating - raio_y_geral_int;
 
    const float INCLINACAO_PAREDE_SUPERIOR_EXTRA = 0.15f;
-   const float FATOR_ALTURA_PAREDE_SUPERIOR = 1.6f; 
+   const float FATOR_ALTURA_PAREDE_SUPERIOR = 1.6f;
    const float rx_base_parede_superior = rx_topo_parede_padrao;
    const float ry_base_parede_superior = ry_topo_parede_padrao;
    const float z_base_parede_superior = altura_max_parede_padrao;
@@ -464,20 +504,16 @@ void display() {
    const float z_topo_parede_superior = altura_max_parede_padrao * FATOR_ALTURA_PAREDE_SUPERIOR;
 
    const float MARQUISE_ESPESSURA = 0.03f;
-   const float MARQUISE_PROJECAO_RADIAL = -0.3f; 
+   const float MARQUISE_PROJECAO_RADIAL = -0.3f;
    const float MARQUISE_INCLINACAO_Z_OFFSET = 0.08f;
    const float rx_base_marquise = rx_topo_parede_superior; // Base (atrás) no topo da parede superior
    const float ry_base_marquise = ry_topo_parede_superior;
    const float z_base_marquise = z_topo_parede_superior + 0.03f;
    const float rx_frente_marquise = rx_base_marquise + MARQUISE_PROJECAO_RADIAL; // Frente (projetada) com raio menor
    const float ry_frente_marquise = ry_base_marquise + MARQUISE_PROJECAO_RADIAL;
-   const float z_frente_marquise = z_base_marquise + MARQUISE_INCLINACAO_Z_OFFSET; // Frente com Z menor 
+   const float z_frente_marquise = z_base_marquise + MARQUISE_INCLINACAO_Z_OFFSET; // Frente com Z menor
 
    //Desenhando Grama
-
-   glColor3f(0.7f, 0.7f, 0.7f); // Cor base branca para não tingir a textura
-   glBindTexture(GL_TEXTURE_2D, idTexturaGrama); // Usa a textura da grama
-
    // Define Z ligeiramente acima do chão para evitar Z-fighting
    glColor3f(1.0f, 1.0f, 1.0f);
     glBindTexture(GL_TEXTURE_2D, idTexturaGrama);
@@ -487,7 +523,7 @@ void display() {
     const float repTexturaGrama = 8.0f;
 
     glBegin(GL_TRIANGLE_FAN);
-        glNormal3f(0.0f, 0.0f, 1.0f);
+        glNormal3f(0.0f, 0.0f, 1.0f); // Normal para cima (Z up)
         glTexCoord2f(0.5f * repTexturaGrama, 0.5f * repTexturaGrama);
         glVertex3f(centro_x, centro_y, Z_GRAMA);
 
@@ -498,13 +534,13 @@ void display() {
             float sin_a = sinf(angulo_rad);
 
             // *** ALTERAÇÃO AQUI: Usar os raios calculados do gramado ***
-            float vx = centro_x + 0.4 * cos_a; // <-- Usa raio_x_gramado
-            float vy = centro_y + 0.6 * sin_a; // <-- Usa raio_y_gramado
+            float vx = centro_x + 0.4 * cos_a; // <-- Usa raio_x_gramado (assumindo 0.4 como raio X)
+            float vy = centro_y + 0.6 * sin_a; // <-- Usa raio_y_gramado (assumindo 0.6 como raio Y)
 
             float s_tex = (cos_a + 1.0f) * 0.5f * repTexturaGrama;
             float t_tex = (sin_a + 1.0f) * 0.5f * repTexturaGrama;
 
-            glNormal3f(0.0f, 0.0f, 1.0f);
+            glNormal3f(0.0f, 0.0f, 1.0f); // Normal para cima (Z up)
             glTexCoord2f(s_tex, t_tex);
             glVertex3f(vx, vy, Z_GRAMA);
         }
@@ -557,7 +593,7 @@ void display() {
     const float INCLINACAO_MARQUISE_EXTRA = 0.10f; // Inclinação *adicional* à base da marquise
     const float ALTURA_INICIO_MARQUISE_FATOR = 1.05f; // Começa 5% acima da parede superior
     const float ALTURA_FIM_MARQUISE_FATOR = 1.4f;
- 
+
    // Desenha as Paredes Principais (PADRÃO - até altura_max_parede_padrao)
    for (int i = 0; i < num_arcos_principais; ++i) {
        float ang_inicio_arco = arcos_principais[i][0];
@@ -584,14 +620,14 @@ void display() {
        );
    }
 
-   // Desenha a PAREDE SUPERIOR ADICIONAL (140-220) 
+   // Desenha a PAREDE SUPERIOR ADICIONAL (140-220)
    desenharParedeExterna(
        centro_x, centro_y,
        rx_base_parede_superior, ry_base_parede_superior, // Base = Topo da parede padrão
        rx_topo_parede_superior, ry_topo_parede_superior, // Topo = Mais inclinado
        z_base_parede_superior, z_topo_parede_superior,   // Altura = Acima da parede padrão
        140.0f, 220.0f,                                   // Apenas neste ângulo da Elipse
-       segmentos_curva_parede 
+       segmentos_curva_parede
    );
 
    //Desenha Marquise
@@ -672,8 +708,56 @@ void display() {
             );
        }
    } // Fim loop for (para tampas)
+
+    // --- Desenho dos refletores ---
+    // Desabilita texturas e iluminação para desenhar os refletores com cor própria,
+    // a menos que você queira que eles também sejam afetados pela luz do sol.
+    // Para que eles funcionem como fontes de luz pontuais/spotlights, seria necessário
+    // configurar GL_LIGHT1, GL_LIGHT2, etc., para cada um, o que é mais complexo.
+    // Vamos desenhá-los simplesmente com uma cor emissiva para que apareçam mesmo no "modo noite".
+    // glDisable(GL_TEXTURE_2D); // Desabilita texturas para os refletores
+    glDisable(GL_LIGHTING); // Desabilita iluminação para desenhar refletores com cor própria
+
+    const int NUM_REFLETORES = 105;
+    float ang_inicio_refletores = 180.0f;
+    float ang_fim_refletores = 220.0f;
+    float intervalo_angular_refletores = ang_fim_refletores - ang_inicio_refletores;
+
+    // Propriedade emissiva para que os refletores brilhem
+    GLfloat material_emissivo[] = { 1.0f, 1.0f, 1.0f, 1.0f }; // Cor branca que emite luz
+    glMaterialfv(GL_FRONT, GL_EMISSION, material_emissivo);
+
+    // Cor dos refletores
+    glColor3f(1.0f, 1.0f, 1.0f); // Branco
+
+    for (int i = 0; i < NUM_REFLETORES; ++i) {
+        float fracao = (NUM_REFLETORES > 1) ? (float)i / (float)(NUM_REFLETORES - 1) : 0.5f;
+        float angulo_graus_atual = ang_inicio_refletores + fracao * intervalo_angular_refletores;
+        float angulo_rad_atual = GRAUS_PARA_RAD(angulo_graus_atual);
+        float cos_a = cosf(angulo_rad_atual);
+        float sin_a = sinf(angulo_rad_atual);
+
+        // Calcula a posição na BORDA FRONTAL da marquise
+        float refletor_x = centro_x + rx_frente_marquise * cos_a;
+        float refletor_y = centro_y + ry_frente_marquise * sin_a;
+        float refletor_z = z_frente_marquise + 0.05f; // Ligeiramente acima da marquise
+
+        // Desenha uma pequena esfera ou cubo para representar o refletor
+        glPushMatrix(); // Salva a matriz atual
+        glTranslatef(refletor_x, refletor_y, refletor_z); // Move para a posição do refletor
+        glutSolidSphere(0.02f, 10, 10); // Desenha uma esfera sólida (raio, slices, stacks)
+        glPopMatrix(); // Restaura a matriz anterior
+    }
+
+    // Desabilita a propriedade emissiva após desenhar os refletores
+    GLfloat material_sem_emissao[] = { 0.0f, 0.0f, 0.0f, 1.0f };
+    glMaterialfv(GL_FRONT, GL_EMISSION, material_sem_emissao);
+
+    glEnable(GL_LIGHTING); // Habilita a iluminação novamente para o restante da cena
+    glEnable(GL_TEXTURE_2D); // Habilita texturas novamente
+
    if (alphaFiltro > 0.0f) {
-    glDisable(GL_DEPTH_TEST); 
+    glDisable(GL_DEPTH_TEST);
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
     glLoadIdentity();
@@ -683,15 +767,15 @@ void display() {
     glPushMatrix();
     glLoadIdentity();
 
-    for (int i = 0; i < 4; i++) {  
-        glColor4f(0.0f, 0.0f, 0.0f, alphaFiltro);
-        glBegin(GL_QUADS);
-            glVertex2f(0.0f, 0.0f);
-            glVertex2f(1.0f, 0.0f);
-            glVertex2f(1.0f, 1.0f);
-            glVertex2f(0.0f, 1.0f);
-        glEnd();
-    }
+    // Aplica um filtro escuro na tela para simular a noite
+    glColor4f(0.0f, 0.0f, 0.0f, alphaFiltro); // Cor preta com transparência controlada por alphaFiltro
+    glBegin(GL_QUADS);
+        glVertex2f(0.0f, 0.0f);
+        glVertex2f(1.0f, 0.0f);
+        glVertex2f(1.0f, 1.0f);
+        glVertex2f(0.0f, 1.0f);
+    glEnd();
+
 
     glPopMatrix();
     glMatrixMode(GL_PROJECTION);
@@ -699,32 +783,10 @@ void display() {
     glMatrixMode(GL_MODELVIEW);
     glEnable(GL_DEPTH_TEST);
     }
-    // Desenho dos refletores
-    // glDisable(GL_TEXTURE_2D); // Desabilita texturas para os refletores
 
-    const int NUM_REFLETORES = 105;
-    float ang_inicio_refletores = 180.0f;
-    float ang_fim_refletores = 220.0f;
-    float intervalo_angular_refletores = ang_fim_refletores - ang_inicio_refletores;
 
-    for (int i = 0; i < NUM_REFLETORES; ++i) {
-        float fracao = (NUM_REFLETORES > 1) ? (float)i / (float)(NUM_REFLETORES - 1) : 0.5f;
-        float angulo_graus_atual = ang_inicio_refletores + fracao * intervalo_angular_refletores;
-        float angulo_rad_atual = GRAUS_PARA_RAD(angulo_graus_atual);
-        float cos_a = cosf(angulo_rad_atual);
-        float sin_a = sinf(angulo_rad_atual);
-
-        // Calcula a posição na BORDA FRONTAL da marquise (inalterado)
-        float refletoe_x = centro_x + rx_frente_marquise * cos_a;
-        float refletoe_y = centro_y + ry_frente_marquise * sin_a;
-        float refletoe_z = z_frente_marquise;
-
-        // *** ALTERADO: Passa o estado 'luzesRefletoresLigadas' para a função ***
-    }
-    glEnable(GL_TEXTURE_2D);
-
-    glBindTexture(GL_TEXTURE_2D, 0);
-    glutSwapBuffers();
+    glBindTexture(GL_TEXTURE_2D, 0); // Desvincula qualquer textura ativa
+    glutSwapBuffers(); // Troca os buffers (mostra o que foi desenhado)
 }
 
 void idle() {
@@ -751,6 +813,10 @@ void init() {
     // Habilita o teste de profundidade (Z-buffer) para que objetos mais próximos ocultem os mais distantes
     glEnable(GL_DEPTH_TEST);
 
+    glEnable(GL_COLOR_MATERIAL);
+    glColorMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE);
+
+
     // Carrega as texturas necessárias
     idTexturaConcreto = carregarTextura("concreto.jpg");
     if (idTexturaConcreto == 0) { // Verifica se o carregamento falhou
@@ -772,8 +838,10 @@ void init() {
        fprintf(stderr, "ERRO FATAL: Textura 'concreto_externo.jpg' não carregada!\n");
        exit(1);
    }
-}
 
+   // Configura a iluminação inicial
+   configurarIluminacao();
+}
 // --- Função de callback: Redimensionamento da Janela ---
 void reshape(int largura, int altura) {
     // Previne divisão por zero se a janela for minimizada
