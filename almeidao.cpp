@@ -265,37 +265,113 @@ void desenharTampaLateral(float cx, float cy, float angulo_graus,
 
 void desenharMarquiseCobertura(float cx, float cy,
     float rx_base, float ry_base, float z_base, // Ponto de trás/base
-    float rx_frente, float ry_frente, float z_frente, // Ponto da frente/projetado
+    float rx_frente, float ry_frente, float z_frente, float espessura,
     float angulo_inicial_graus, float angulo_final_graus,
     int num_segmentos_curva) {
     if (num_segmentos_curva <= 1) num_segmentos_curva = 2;
+    float z_base_inf = z_base - espessura;
+    float z_frente_inf = z_frente - espessura;
 
     float rad_inicial = GRAUS_PARA_RAD(angulo_inicial_graus);
     float rad_final = GRAUS_PARA_RAD(angulo_final_graus);
     float intervalo_rad = rad_final - rad_inicial;
 
-    // Define a aparência (pode mudar cor/textura)
-    glColor3f(0.7f, 0.7f, 0.75f); // Um cinza diferente
-    // glBindTexture(GL_TEXTURE_2D, idTexturaMarquise); // Se tiver textura
-
+    // --- 1. Superfície SUPERIOR ---
+    glColor3f(0.7f, 0.7f, 0.75f); // Cor da superfície superior
+    // glBindTexture(GL_TEXTURE_2D, idTexturaMarquiseTopo); // Textura Topo
     glBegin(GL_TRIANGLE_STRIP);
     for (int i = 0; i <= num_segmentos_curva; i++) {
-    float fracao = (float)i / (float)num_segmentos_curva;
-    float angulo_atual_rad = rad_inicial + fracao * intervalo_rad;
-    float cos_a = cosf(angulo_atual_rad);
-    float sin_a = sinf(angulo_atual_rad);
-    float s_coord = fracao; // Mapeamento de textura simples 0-1
-
-    // Vértice de TRÁS/BASE (no topo da parede superior)
-    glTexCoord2f(s_coord, 1.0f); // T=1 na parte de trás/base
-    glVertex3f(cx + rx_base * cos_a, cy + ry_base * sin_a, z_base);
-
-    // Vértice da FRENTE (projetado sobre a arquibancada)
-    glTexCoord2f(s_coord, 0.0f); // T=0 na frente/borda
-    glVertex3f(cx + rx_frente * cos_a, cy + ry_frente * sin_a, z_frente);
+        float fracao = (float)i / (float)num_segmentos_curva;
+        float angulo_atual_rad = rad_inicial + fracao * intervalo_rad;
+        float cos_a = cosf(angulo_atual_rad); float sin_a = sinf(angulo_atual_rad);
+        float s_coord = fracao;
+        // Vértice Trás/Base (Superior)
+        glTexCoord2f(s_coord, 1.0f); glVertex3f(cx + rx_base * cos_a, cy + ry_base * sin_a, z_base);
+        // Vértice Frente (Superior)
+        glTexCoord2f(s_coord, 0.0f); glVertex3f(cx + rx_frente * cos_a, cy + ry_frente * sin_a, z_frente);
     }
     glEnd();
+
+    // --- 2. Superfície INFERIOR ---
+    glColor3f(0.6f, 0.6f, 0.65f); // Cor um pouco mais escura para baixo
+    // glBindTexture(GL_TEXTURE_2D, idTexturaMarquiseFundo); // Textura Fundo
+    glBegin(GL_TRIANGLE_STRIP);
+    for (int i = 0; i <= num_segmentos_curva; i++) {
+        float fracao = (float)i / (float)num_segmentos_curva;
+        float angulo_atual_rad = rad_inicial + fracao * intervalo_rad;
+        float cos_a = cosf(angulo_atual_rad); float sin_a = sinf(angulo_atual_rad);
+        float s_coord = fracao;
+        // Vértice Trás/Base (Inferior) - Ordem invertida para face apontar para baixo? Testar.
+        // Ou manter ordem e usar glFrontFace(GL_CW) / glCullFace(GL_FRONT) se culling estiver ativo.
+        // Vamos manter a ordem por enquanto:
+        glTexCoord2f(s_coord, 1.0f); glVertex3f(cx + rx_base * cos_a, cy + ry_base * sin_a, z_base_inf);
+        // Vértice Frente (Inferior)
+        glTexCoord2f(s_coord, 0.0f); glVertex3f(cx + rx_frente * cos_a, cy + ry_frente * sin_a, z_frente_inf);
+    }
+    glEnd();
+
+    // --- 3. Borda FRONTAL (Espessura) ---
+    glColor3f(0.65f, 0.65f, 0.7f); // Cor da borda
+    // glBindTexture(GL_TEXTURE_2D, idTexturaMarquiseBorda); // Textura Borda
+    glBegin(GL_TRIANGLE_STRIP);
+    for (int i = 0; i <= num_segmentos_curva; i++) {
+        float fracao = (float)i / (float)num_segmentos_curva;
+        float angulo_atual_rad = rad_inicial + fracao * intervalo_rad;
+        float cos_a = cosf(angulo_atual_rad); float sin_a = sinf(angulo_atual_rad);
+        float s_coord = fracao;
+        // Vértice Frente (Superior)
+        glTexCoord2f(s_coord, 1.0f); glVertex3f(cx + rx_frente * cos_a, cy + ry_frente * sin_a, z_frente);
+        // Vértice Frente (Inferior)
+        glTexCoord2f(s_coord, 0.0f); glVertex3f(cx + rx_frente * cos_a, cy + ry_frente * sin_a, z_frente_inf);
+    
+
+    // --- 4. Borda TRASEIRA (Espessura - Opcional, pode não ser visível) ---
+    // Se precisar desenhar:
+    
+    glColor3f(0.65f, 0.65f, 0.7f);
+    glBegin(GL_TRIANGLE_STRIP);
+    for (int i = 0; i <= num_segmentos_curva; i++) {
+        float fracao = (float)i / (float)num_segmentos_curva;
+        float angulo_atual_rad = rad_inicial + fracao * intervalo_rad;
+        float cos_a = cosf(angulo_atual_rad); float sin_a = sinf(angulo_atual_rad);
+        float s_coord = fracao;
+        // Vértice Trás/Base (Superior)
+        glTexCoord2f(s_coord, 1.0f); glVertex3f(cx + rx_base * cos_a, cy + ry_base * sin_a, z_base);
+        // Vértice Trás/Base (Inferior)
+        glTexCoord2f(s_coord, 0.0f); glVertex3f(cx + rx_base * cos_a, cy + ry_base * sin_a, z_base_inf);
+    }
+    glEnd();
+    }
+
+    // --- 5. Tampas Laterais da Marquise ---
+    // Tampa no ângulo inicial
+    float cos_ini = cosf(rad_inicial); float sin_ini = sinf(rad_inicial);
+    float v1_ini[3] = {cx + rx_frente * cos_ini, cy + ry_frente * sin_ini, z_frente_inf}; // Frente Inf
+    float v2_ini[3] = {cx + rx_base * cos_ini, cy + ry_base * sin_ini, z_base_inf};     // Trás Inf
+    float v3_ini[3] = {cx + rx_base * cos_ini, cy + ry_base * sin_ini, z_base};         // Trás Sup
+    float v4_ini[3] = {cx + rx_frente * cos_ini, cy + ry_frente * sin_ini, z_frente};     // Frente Sup
+    glBegin(GL_QUADS);
+        glTexCoord2f(0.0f, 0.0f); glVertex3fv(v1_ini);
+        glTexCoord2f(1.0f, 0.0f); glVertex3fv(v2_ini);
+        glTexCoord2f(1.0f, 1.0f); glVertex3fv(v3_ini);
+        glTexCoord2f(0.0f, 1.0f); glVertex3fv(v4_ini);
+    glEnd();
+
+    // Tampa no ângulo final
+    float cos_fim = cosf(rad_final); float sin_fim = sinf(rad_final);
+    float v1_fim[3] = {cx + rx_frente * cos_fim, cy + ry_frente * sin_fim, z_frente_inf}; // Frente Inf
+    float v2_fim[3] = {cx + rx_base * cos_fim, cy + ry_base * sin_fim, z_base_inf};     // Trás Inf
+    float v3_fim[3] = {cx + rx_base * cos_fim, cy + ry_base * sin_fim, z_base};         // Trás Sup
+    float v4_fim[3] = {cx + rx_frente * cos_fim, cy + ry_frente * sin_fim, z_frente};     // Frente Sup
+    glBegin(GL_QUADS);
+        // Ordem dos vértices para o Quad apontar para fora no fim do arco
+        glTexCoord2f(0.0f, 0.0f); glVertex3fv(v1_fim); // Frente Inf
+        glTexCoord2f(0.0f, 1.0f); glVertex3fv(v4_fim); // Frente Sup
+        glTexCoord2f(1.0f, 1.0f); glVertex3fv(v3_fim); // Trás Sup
+        glTexCoord2f(1.0f, 0.0f); glVertex3fv(v2_fim); // Trás Inf
+    glEnd();
 }
+
 
 // --- Função de callback: Desenho ---
 void display() {
@@ -305,9 +381,6 @@ void display() {
     // --- Configurações de Câmera e Rotação ---
     glMatrixMode(GL_MODELVIEW); // Define a matriz de ModelView como a matriz atual
     glLoadIdentity();           // Carrega a matriz identidade (reseta transformações)
-
-    // Salva o estado da matriz antes de aplicar a transformação da câmera
-   glPushMatrix();
 
    // Configuração da câmera
    glTranslatef(-camera_position[0], -camera_position[1], -camera_position[2]);
@@ -355,9 +428,7 @@ void display() {
    const float altura_max_parede_padrao = ALTURA_MAX_ESC; // Altura padrão explícita
    const float rx_topo_parede_padrao = raio_x_geral_ext + INCLINACAO_PAREDE_OFFSET; // Topo padrão explícito
    const float ry_topo_parede_padrao = raio_y_geral_ext + INCLINACAO_PAREDE_OFFSET;
-   // const float altura_arco_conexao = ALTURA_MIN_ESC; // Valor original
-   const float altura_arco_conexao = ALTURA_MIN_ESC * 7; // Valor que estava no seu código
-   
+   const float altura_arco_conexao = ALTURA_MIN_ESC * 7; 
 
    // Arcos
    float arcos_principais[][2] = {
@@ -389,14 +460,16 @@ void display() {
    const float ry_topo_parede_superior = ry_base_parede_superior + INCLINACAO_PAREDE_SUPERIOR_EXTRA;
    const float z_topo_parede_superior = altura_max_parede_padrao * FATOR_ALTURA_PAREDE_SUPERIOR;
 
+   const float MARQUISE_ESPESSURA = 0.03f;
    const float MARQUISE_PROJECAO_RADIAL = -0.3f; 
    const float MARQUISE_INCLINACAO_Z_OFFSET = 0.08f;
    const float rx_base_marquise = rx_topo_parede_superior; // Base (atrás) no topo da parede superior
    const float ry_base_marquise = ry_topo_parede_superior;
-   const float z_base_marquise = z_topo_parede_superior;   // Base Z no topo da parede superior
+   const float z_base_marquise = z_topo_parede_superior + 0.03f;
    const float rx_frente_marquise = rx_base_marquise + MARQUISE_PROJECAO_RADIAL; // Frente (projetada) com raio menor
    const float ry_frente_marquise = ry_base_marquise + MARQUISE_PROJECAO_RADIAL;
    const float z_frente_marquise = z_base_marquise + MARQUISE_INCLINACAO_Z_OFFSET; // Frente com Z menor 
+
 
    // --- 2. Desenhar Arquibancadas (Degraus) ---
    glColor3f(1.0f, 1.0f, 1.0f);
@@ -478,17 +551,18 @@ void display() {
        rx_base_parede_superior, ry_base_parede_superior, // Base = Topo da parede padrão
        rx_topo_parede_superior, ry_topo_parede_superior, // Topo = Mais inclinado
        z_base_parede_superior, z_topo_parede_superior,   // Altura = Acima da parede padrão
-       140.0f, 220.0f,                                   // Apenas neste ângulo
-       segmentos_curva_parede
+       140.0f, 220.0f,                                   // Apenas neste ângulo da Elipse
+       segmentos_curva_parede 
    );
 
    //Desenha Marquise
    desenharMarquiseCobertura(
     centro_x, centro_y,
-    rx_base_marquise, ry_base_marquise, z_base_marquise,     // Base da marquise
-    rx_frente_marquise, ry_frente_marquise, z_frente_marquise, // Frente da marquise
-    180.0f, 220.0f,                                          // Ângulo (segunda metade da seção especial)
-    segmentos_curva_parede / 2                               // Resolução (ajuste se necessário)
+    rx_base_marquise, ry_base_marquise, z_base_marquise,     // Base (Superior)
+    rx_frente_marquise, ry_frente_marquise, z_frente_marquise, // Frente (Superior)
+    MARQUISE_ESPESSURA,                                      // Espessura
+    180.0f, 220.0f,                                          // Ângulo da Elipse
+    segmentos_curva_parede / 2
     );
     // Restaurar cor/textura da parede se necessário
     glColor3f(0.9f, 0.9f, 0.9f);
@@ -559,44 +633,60 @@ void display() {
             );
        }
    } // Fim loop for (para tampas)
+   if (alphaFiltro > 0.0f) {
+    glDisable(GL_DEPTH_TEST); 
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    gluOrtho2D(0, 1, 0, 1);
 
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
 
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    if (alphaFiltro > 0.0f) {
-        glDisable(GL_DEPTH_TEST); 
-        glMatrixMode(GL_PROJECTION);
-        glPushMatrix();
-        glLoadIdentity();
-        gluOrtho2D(0, 1, 0, 1);
-    
-        glMatrixMode(GL_MODELVIEW);
-        glPushMatrix();
-        glLoadIdentity();
-    
-        for (int i = 0; i < 4; i++) {  
-            glColor4f(0.0f, 0.0f, 0.0f, alphaFiltro);
-            glBegin(GL_QUADS);
-                glVertex2f(0.0f, 0.0f);
-                glVertex2f(1.0f, 0.0f);
-                glVertex2f(1.0f, 1.0f);
-                glVertex2f(0.0f, 1.0f);
-            glEnd();
-        }
-    
-        glPopMatrix();
-        glMatrixMode(GL_PROJECTION);
-        glPopMatrix();
-        glMatrixMode(GL_MODELVIEW);
-        glEnable(GL_DEPTH_TEST);
+    for (int i = 0; i < 4; i++) {  
+        glColor4f(0.0f, 0.0f, 0.0f, alphaFiltro);
+        glBegin(GL_QUADS);
+            glVertex2f(0.0f, 0.0f);
+            glVertex2f(1.0f, 0.0f);
+            glVertex2f(1.0f, 1.0f);
+            glVertex2f(0.0f, 1.0f);
+        glEnd();
     }
 
-   glutSwapBuffers();
-   glBindTexture(GL_TEXTURE_2D, 0);
-   glutSwapBuffers();
+    glPopMatrix();
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+    glEnable(GL_DEPTH_TEST);
+    }
+    // Desenho dos refletores
+    // glDisable(GL_TEXTURE_2D); // Desabilita texturas para os refletores
 
+    const int NUM_REFLETORES = 105;
+    float ang_inicio_refletores = 180.0f;
+    float ang_fim_refletores = 220.0f;
+    float intervalo_angular_refletores = ang_fim_refletores - ang_inicio_refletores;
+
+    for (int i = 0; i < NUM_REFLETORES; ++i) {
+        float fracao = (NUM_REFLETORES > 1) ? (float)i / (float)(NUM_REFLETORES - 1) : 0.5f;
+        float angulo_graus_atual = ang_inicio_refletores + fracao * intervalo_angular_refletores;
+        float angulo_rad_atual = GRAUS_PARA_RAD(angulo_graus_atual);
+        float cos_a = cosf(angulo_rad_atual);
+        float sin_a = sinf(angulo_rad_atual);
+
+        // Calcula a posição na BORDA FRONTAL da marquise (inalterado)
+        float refletoe_x = centro_x + rx_frente_marquise * cos_a;
+        float refletoe_y = centro_y + ry_frente_marquise * sin_a;
+        float refletoe_z = z_frente_marquise;
+
+        // *** ALTERADO: Passa o estado 'luzesRefletoresLigadas' para a função ***
+    }
+    glEnable(GL_TEXTURE_2D);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glutSwapBuffers();
 }
-
 
 void idle() {
     static int contador = 0;
@@ -607,7 +697,6 @@ void idle() {
     }
     glutPostRedisplay();
 }
-
 
 // --- Função de callback: Inicialização ---
 void init() {
@@ -624,7 +713,6 @@ void init() {
     glEnable(GL_DEPTH_TEST);
 
     // Carrega as texturas necessárias
-    printf("Carregando texturas...\n");
     idTexturaConcreto = carregarTextura("concreto.jpg");
     if (idTexturaConcreto == 0) { // Verifica se o carregamento falhou
         fprintf(stderr, "ERRO FATAL: Textura 'concreto.jpg' não carregada!\n");
@@ -641,7 +729,6 @@ void init() {
         fprintf(stderr, "ERRO FATAL: Textura 'concreto_externo.jpg' não carregada!\n");
         exit(1);
     }
-    printf("Texturas carregadas com sucesso.\n");
 }
 
 // --- Função de callback: Redimensionamento da Janela ---
@@ -667,11 +754,6 @@ void reshape(int largura, int altura) {
     // Retorna para a matriz de ModelView para as operações de desenho e câmera
     glMatrixMode(GL_MODELVIEW);
 }
-
-// teste para ver se a função keyboard funciona
-// void keyboard(unsigned char key, int x, int y) {
-//    printf("tecla: %c\n", key);
-//  }
 
 void keyboard(unsigned char key, int x, int y) {
     printf("Tecla: %c\n", key);
@@ -728,7 +810,7 @@ int main(int numArgumentos, char** argumentos) {
     glutInitWindowPosition(100, 100);
 
     // Cria a janela com o título especificado
-    glutCreateWindow("Simulador de Estádio Elíptico com Texturas");
+    glutCreateWindow("Almeidão");
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
