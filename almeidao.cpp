@@ -21,6 +21,7 @@
 GLuint idTexturaConcreto;
 GLuint idTexturaTerra;
 GLuint idTexturaConcretoExterno;
+GLuint idTexturaGrama;
 
 // Variáveis de Câmera/Rotação
 float anguloRotacaoZ = 0.0f;    // Rotação em torno do eixo Z (vista de cima)
@@ -413,6 +414,8 @@ void display() {
        glTexCoord2f(0.0f, repTexturaChao);         glVertex3f(-tamChao,  tamChao, Z_CHAO);
    glEnd();
 
+   
+
    // --- Parâmetros Comuns & Seção Especial ---
    float centro_x = 0.0f;
    float centro_y = 0.0f;
@@ -470,6 +473,42 @@ void display() {
    const float ry_frente_marquise = ry_base_marquise + MARQUISE_PROJECAO_RADIAL;
    const float z_frente_marquise = z_base_marquise + MARQUISE_INCLINACAO_Z_OFFSET; // Frente com Z menor 
 
+   //Desenhando Grama
+
+   glColor3f(0.7f, 0.7f, 0.7f); // Cor base branca para não tingir a textura
+   glBindTexture(GL_TEXTURE_2D, idTexturaGrama); // Usa a textura da grama
+
+   // Define Z ligeiramente acima do chão para evitar Z-fighting
+   glColor3f(1.0f, 1.0f, 1.0f);
+    glBindTexture(GL_TEXTURE_2D, idTexturaGrama);
+
+    const float Z_GRAMA = Z_CHAO + 0.001f;
+    const int segmentos_curva_grama = 60;
+    const float repTexturaGrama = 8.0f;
+
+    glBegin(GL_TRIANGLE_FAN);
+        glNormal3f(0.0f, 0.0f, 1.0f);
+        glTexCoord2f(0.5f * repTexturaGrama, 0.5f * repTexturaGrama);
+        glVertex3f(centro_x, centro_y, Z_GRAMA);
+
+        for (int i = 0; i <= segmentos_curva_grama; i++) {
+            float fracao = (float)i / (float)segmentos_curva_grama;
+            float angulo_rad = fracao * 2.0f * PI;
+            float cos_a = cosf(angulo_rad);
+            float sin_a = sinf(angulo_rad);
+
+            // *** ALTERAÇÃO AQUI: Usar os raios calculados do gramado ***
+            float vx = centro_x + 0.4 * cos_a; // <-- Usa raio_x_gramado
+            float vy = centro_y + 0.6 * sin_a; // <-- Usa raio_y_gramado
+
+            float s_tex = (cos_a + 1.0f) * 0.5f * repTexturaGrama;
+            float t_tex = (sin_a + 1.0f) * 0.5f * repTexturaGrama;
+
+            glNormal3f(0.0f, 0.0f, 1.0f);
+            glTexCoord2f(s_tex, t_tex);
+            glVertex3f(vx, vy, Z_GRAMA);
+        }
+    glEnd();
 
    // --- 2. Desenhar Arquibancadas (Degraus) ---
    glColor3f(1.0f, 1.0f, 1.0f);
@@ -728,7 +767,11 @@ void init() {
      if (idTexturaConcretoExterno == 0) {
         fprintf(stderr, "ERRO FATAL: Textura 'concreto_externo.jpg' não carregada!\n");
         exit(1);
-    }
+    }idTexturaGrama = carregarTextura("grama.jpg");
+    if (idTexturaConcretoExterno == 0) {
+       fprintf(stderr, "ERRO FATAL: Textura 'concreto_externo.jpg' não carregada!\n");
+       exit(1);
+   }
 }
 
 // --- Função de callback: Redimensionamento da Janela ---
