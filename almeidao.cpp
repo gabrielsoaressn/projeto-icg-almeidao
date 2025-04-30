@@ -560,7 +560,7 @@ void display() {
        }
    } // Fim loop for (para tampas)
 
-<<<<<<< HEAD
+
     glBindTexture(GL_TEXTURE_2D, 0);
 
     if (alphaFiltro > 0.0f) {
@@ -591,11 +591,10 @@ void display() {
         glEnable(GL_DEPTH_TEST);
     }
 
-    glutSwapBuffers();
-=======
+   glutSwapBuffers();
    glBindTexture(GL_TEXTURE_2D, 0);
    glutSwapBuffers();
->>>>>>> ffc216e1a86d9e4f9349550f3a3d9fd009e71059
+
 }
 
 
