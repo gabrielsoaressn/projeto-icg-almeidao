@@ -91,7 +91,6 @@ Após a compilação bem-sucedida, execute o programa a partir do mesmo diretór
     ```
 
 *   **Controles:**
-Use o teclado para interagir com a simulação:
 
 A / D: Girar a visualização horizontalmente (em torno do eixo vertical Y — rotação da câmera).
 
