@@ -59,6 +59,23 @@ float p3[3] = {15.0f, 5.0f, 10.0f};
 bool mouseEsquerdoPressionado = false;
 int ultimoXMouse = 0;
 
+int modoNoite = 0;            // 0 = dia, 1 = noite
+float alphaFiltro = 0.0f;     // 0.0 = dia, 1.0 = noite
+float passoTransicao = 1.0f / 300.0f; // Transição de 30 segundos
+
+void atualizarTransicao(int valor) {
+    if (modoNoite && alphaFiltro < 1.5f) {
+        alphaFiltro += passoTransicao;
+        if (alphaFiltro > 1.5f) alphaFiltro = 1.5f;
+    } else if (!modoNoite && alphaFiltro > 0.0f) {
+        alphaFiltro -= passoTransicao;
+        if (alphaFiltro < 0.0f) alphaFiltro = 0.0f;
+    }
+
+    glutPostRedisplay();  // Atualiza a tela
+    glutTimerFunc(100, atualizarTransicao, 0);  // Chama a função novamente após 100ms
+}
+
 
 //  Função para capturar o clique do mouse
 void mouse(int botao, int estado, int x, int y) {
@@ -254,6 +271,9 @@ void display() {
     // --- Configurações de Câmera e Rotação ---
     glMatrixMode(GL_MODELVIEW); // Define a matriz de ModelView como a matriz atual
     glLoadIdentity();           // Carrega a matriz identidade (reseta transformações)
+
+    // Salva o estado da matriz antes de aplicar a transformação da câmera
+   glPushMatrix();
 
    // Configuração da câmera
    glTranslatef(-camera_position[0], -camera_position[1], -camera_position[2]);
@@ -497,8 +517,49 @@ void display() {
     }
 
     glBindTexture(GL_TEXTURE_2D, 0);
+
+    if (alphaFiltro > 0.0f) {
+        glDisable(GL_DEPTH_TEST); 
+        glMatrixMode(GL_PROJECTION);
+        glPushMatrix();
+        glLoadIdentity();
+        gluOrtho2D(0, 1, 0, 1);
+    
+        glMatrixMode(GL_MODELVIEW);
+        glPushMatrix();
+        glLoadIdentity();
+    
+        for (int i = 0; i < 4; i++) {  
+            glColor4f(0.0f, 0.0f, 0.0f, alphaFiltro);
+            glBegin(GL_QUADS);
+                glVertex2f(0.0f, 0.0f);
+                glVertex2f(1.0f, 0.0f);
+                glVertex2f(1.0f, 1.0f);
+                glVertex2f(0.0f, 1.0f);
+            glEnd();
+        }
+    
+        glPopMatrix();
+        glMatrixMode(GL_PROJECTION);
+        glPopMatrix();
+        glMatrixMode(GL_MODELVIEW);
+        glEnable(GL_DEPTH_TEST);
+    }
+
     glutSwapBuffers();
 }
+
+
+void idle() {
+    static int contador = 0;
+    contador++;
+    if (contador > 5000) {  // muda a cada x frames (~alguns segundos)
+        modoNoite = !modoNoite;
+        contador = 0;
+    }
+    glutPostRedisplay();
+}
+
 
 // --- Função de callback: Inicialização ---
 void init() {
@@ -621,6 +682,10 @@ int main(int numArgumentos, char** argumentos) {
     // Cria a janela com o título especificado
     glutCreateWindow("Simulador de Estádio Elíptico com Texturas");
 
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glutTimerFunc(0, atualizarTransicao, 0);
+
     // Chama nossa função de inicialização (configura OpenGL, carrega texturas)
     init();
 
@@ -630,7 +695,7 @@ int main(int numArgumentos, char** argumentos) {
     glutReshapeFunc(reshape);   // Função a ser chamada quando a janela é redimensionada
     glutKeyboardFunc(keyboard); // Função a ser chamada quando uma tecla é pressionada
 
-
+    glutIdleFunc(idle);
     glutMouseFunc(mouse);
     glutMotionFunc(motion);
 
